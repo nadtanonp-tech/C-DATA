@@ -13,7 +13,10 @@ return new class extends Migration
             
             // --- Identity ---
             $table->string('code_no')->unique(); // CodeNo
-            $table->foreignId('tool_type_id')->nullable()->constrained('tool_types'); // Type (nullable เผื่อหาไม่เจอ)
+            $table->foreignId('tool_type_id')
+                    ->nullable()
+                    ->constrained('tool_types')
+                    ->nullOnDelete(); // Type (nullable เผื่อหาไม่เจอ)
             
             $table->string('name')->nullable();       // Name
             $table->string('serial_no')->nullable();  // Serial
@@ -25,7 +28,11 @@ return new class extends Migration
             // --- Ownership ---
             $table->string('owner_id')->nullable();     // IDPers
             $table->string('owner_name')->nullable();   // Personal (เพิ่มใหม่: เผื่อเก็บชื่อคนถือ)
-            $table->string('department')->nullable();   // Department
+            // ของใหม่: เชื่อมกับตาราง departments
+            $table->foreignId('department_id')
+                  ->nullable()
+                  ->constrained('departments')
+                  ->nullOnDelete(); // Department
             $table->string('machine_name')->nullable(); // Machine
             
             // --- Calibration ---
@@ -37,11 +44,13 @@ return new class extends Migration
             // --- Specific Specs (ข้อมูลเฉพาะตัวที่อาจต่างจาก Type) ---
             $table->string('range_spec')->nullable();      // Range (เพิ่มใหม่)
             $table->string('percent_adj')->nullable();     // PercentAdj (เพิ่มใหม่)
-            $table->text('criteria_specific')->nullable(); // Criteria_1 + Criteria1_1 (เพิ่มใหม่)
+            $table->decimal('criteria_1', 10, 4)->nullable(); // เก็บทศนิยม 4 ตำแหน่ง
+            $table->decimal('criteria_2', 10, 4)->nullable(); // Criteria_1 + Criteria1_1 (เพิ่มใหม่)
             $table->string('reference_doc')->nullable();   // Reference (เพิ่มใหม่)
 
             // --- Status & Price ---
             $table->string('status')->default('Active'); // Status
+            $table->date('cancellation_date')->nullable(); // Cancellation Date
             $table->decimal('price', 15, 2)->nullable(); // Price
             $table->text('remark')->nullable();          // Remark
             

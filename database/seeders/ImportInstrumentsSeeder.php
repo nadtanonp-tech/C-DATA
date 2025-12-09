@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Models\Department;
 
 class ImportInstrumentsSeeder extends Seeder
 {
@@ -26,7 +27,7 @@ class ImportInstrumentsSeeder extends Seeder
         }
     }
 
-    // --- ฟังก์ชันจัดกลุ่ม Dropdown (เหมือนเดิม) ---
+    // --- Helper Functions ---
     private function mapStatus($val)
     {
         if (!$val) return 'ใช้งาน';
@@ -59,94 +60,74 @@ class ImportInstrumentsSeeder extends Seeder
 
     public function run()
     {
-        // 1. ดึงข้อมูลจาก DataRecode
         $oldInstruments = DB::table('DataRecord')->get(); 
-
-        $batchData = [];
-        $batchSize = 100;
 
         foreach ($oldInstruments as $oldRow) {
             
-            // ถ้าไม่มี CodeNo ข้าม (Key หลักต้องมี)
             if (empty($oldRow->CodeNo)) continue;
 
-            // ---------------------------------------------------------
-            // 2. ปรับปรุง Logic การหา Type ID (ตามข้อมูลใหม่ของคุณ)
-            // ---------------------------------------------------------
-            // ใช้ฟิลด์ 'Name' ของ DataRecode ไปเทียบกับ 'code_type' ของ tool_types
+            $codeNo = $this->cleanText($oldRow->CodeNo);
+
+            // --- 2. หา Type ID ---
             $toolTypeId = null;
-            if (!empty($oldRow->Name)) {
+            if (!empty($oldRow->Name)) { 
                 $typeObj = DB::table('tool_types')
-                             ->where('code_type', trim($oldRow->Name)) // <--- แก้ตรงนี้ครับ ใช้ Name แทน Type
+                             ->where('code_type', trim($oldRow->Name))
                              ->select('id')
                              ->first();
                 if ($typeObj) $toolTypeId = $typeObj->id;
             }
 
-            // จัดการราคา
+            // --- 3. จัดการแผนก (Department) ---
+            $deptId = null;
+            $deptName = $this->cleanText($oldRow->Department);
+            if (!empty($deptName)) {
+                $dept = Department::firstOrCreate(['name' => $deptName]);
+                $deptId = $dept->id;
+            }
+
+            // --- 4. จัดการราคา ---
             $price = 0;
             if (!empty($oldRow->Price)) {
                 $price = (float) str_replace(',', '', $oldRow->Price);
             }
 
-            // รวม Criteria
-            $criteriaSpec = $this->cleanText($oldRow->Criteria_1 ?? null);
-            if (!empty($oldRow->Criteria1_1)) {
-                $criteriaSpec .= ' / ' . $this->cleanText($oldRow->Criteria1_1);
-            }
-
-            // 3. เตรียมข้อมูล
-            $batchData[] = [
-                'code_no'      => $this->cleanText($oldRow->CodeNo),
-                'tool_type_id' => $toolTypeId,
-                
-                // เก็บ Name เดิมลงไปด้วย (แม้จะเป็น CodeType) เพื่อรักษาข้อมูลต้นฉบับ
-                'name'         => $this->cleanText($oldRow->Name),
-                
-                'serial_no'    => $this->cleanText($oldRow->Serial),
-                'brand'        => $this->cleanText($oldRow->Brand),
-                'asset_no'     => $this->cleanText($oldRow->AssetNo),
-                
-                // ใช้ Mapping Function
-                'equip_type'   => $this->mapEquipType($oldRow->EquipType),
-                'maker'        => $this->cleanText($oldRow->NameMakerB),
-                
-                'owner_id'     => $this->cleanText($oldRow->IDPers),
-                'owner_name'   => $this->cleanText($oldRow->Personal),
-                'department'   => $this->cleanText($oldRow->Department),
-                'machine_name' => $this->cleanText($oldRow->Machine),
-                
-                'cal_freq_months' => (int) ($oldRow->FeqCAL ?? 12),
-                'receive_date'  => $this->parseDate($oldRow->RecieveDate),
-                'next_cal_date' => $this->parseDate($oldRow->ExpireDate),
-                
-                // ใช้ Mapping Function
-                'cal_place'     => $this->mapPlaceCal($oldRow->PlaceCAL),
-                
-                'range_spec'    => $this->cleanText($oldRow->Range),
-                'percent_adj'   => $this->cleanText($oldRow->PercentAdj),
-                'criteria_specific' => $criteriaSpec,
-                'reference_doc' => $this->cleanText($oldRow->Reference),
-
-                // ใช้ Mapping Function
-                'status'        => $this->mapStatus($oldRow->Status),
-                
-                'price'         => $price,
-                'remark'        => $this->cleanText($oldRow->Remark),
-                
-                'created_at'    => now(),
-                'updated_at'    => now(),
-            ];
-
-            // Batch Insert
-            if (count($batchData) >= $batchSize) {
-                DB::table('instruments')->insert($batchData);
-                $batchData = [];
-            }
+            // --- 5. บันทึกหรืออัปเดต (updateOrInsert) ---
+            // ข้อดี: รันซ้ำกี่รอบก็ได้ ข้อมูลไม่พัง
+            DB::table('instruments')->updateOrInsert(
+                ['code_no' => $codeNo], // เงื่อนไขการเช็ค (ถ้าเจอ Code นี้)
+                [
+                    // ข้อมูลที่จะบันทึก/อัปเดต
+                    'tool_type_id'    => $toolTypeId,
+                    'name'            => $this->cleanText($oldRow->Name), // คุณแก้เป็น Name แล้วถูกต้องครับ
+                    'serial_no'       => $this->cleanText($oldRow->Serial),
+                    'brand'           => $this->cleanText($oldRow->Brand),
+                    'asset_no'        => $this->cleanText($oldRow->AssetNo),
+                    'equip_type'      => $this->mapEquipType($oldRow->EquipType),
+                    'maker'           => $this->cleanText($oldRow->NameMakerB),
+                    'owner_id'        => $this->cleanText($oldRow->IDPers),
+                    'owner_name'      => $this->cleanText($oldRow->Personal),
+                    'department_id'   => $deptId,
+                    'machine_name'    => $this->cleanText($oldRow->Machine),
+                    'cal_freq_months' => (int) ($oldRow->FeqCAL ?? 12),
+                    'receive_date'    => $this->parseDate($oldRow->RecieveDate),
+                    'next_cal_date'     => null, // ปล่อยว่างไว้ก่อน (เพราะ ExpireDate ของเก่าคือวันยกเลิก)
+                    'cancellation_date' => $this->parseDate($oldRow->ExpireDate), // ย้ายมาลงช่องนี้แทน
+                    'cal_place'       => $this->mapPlaceCal($oldRow->PlaceCAL),
+                    'range_spec'      => $this->cleanText($oldRow->Range),
+                    'percent_adj'     => $this->cleanText($oldRow->PercentAdj),
+                    'criteria_1'      => isset($oldRow->Criteria_1) ? (float) $oldRow->Criteria_1 : null,
+                    'criteria_2'      => isset($oldRow->Criteria1_1) ? (float) $oldRow->Criteria1_1 : null,
+                    'reference_doc'   => $this->cleanText($oldRow->Reference),
+                    'status'          => $this->mapStatus($oldRow->Status),
+                    'price'           => $price,
+                    'remark'          => $this->cleanText($oldRow->Remark),
+                    'created_at'      => now(),
+                    'updated_at'      => now(),
+                ]
+            );
         }
-
-        if (!empty($batchData)) {
-            DB::table('instruments')->insert($batchData);
-        }
+        // หมายเหตุ: เมื่อใช้ updateOrInsert เราจะไม่ใช้ Batch Insert ($batchData) นะครับ
+        // เพราะมันต้องเช็คทีละแถว ทำให้ช้ากว่านิดหน่อย แต่ปลอดภัยกว่าครับ
     }
 }

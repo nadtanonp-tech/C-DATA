@@ -90,4 +90,44 @@ class ImportExternalCalSeeder extends Seeder
             return Carbon::parse($dateVal)->format('Y-m-d');
         } catch (\Exception $e) { return null; }
     }
+    // ฟังก์ชันสำหรับแกะวันที่ไทยจาก Remark
+    private function parseThaiDateFromRemark($remark)
+    {
+        if (empty($remark)) return null;
+
+        // 1. ใช้ Regex ค้นหาแพทเทิร์น "Next Cal : 31 ต.ค. 2569"
+        // คำอธิบาย Regex:
+        // Next Cal\s*:\s* -> หาคำว่า Next Cal : (ยอมให้มีช่องว่างได้)
+        // (\d{1,2})        -> เก็บวันที่ (1-2 หลัก) ไว้ในตัวแปรที่ 1
+        // \s+              -> ช่องว่าง
+        // ([^\s]+)         -> เก็บชื่อเดือน (ต.ค.) ไว้ในตัวแปรที่ 2
+        // \s+              -> ช่องว่าง
+        // (\d{4})          -> เก็บปี (2569) ไว้ในตัวแปรที่ 3
+        if (preg_match('/Next Cal\s*:\s*(\d{1,2})\s+([^\s]+)\s+(\d{4})/u', $remark, $matches)) {
+            
+            $day = $matches[1];
+            $thaiMonth = $matches[2];
+            $thaiYear = $matches[3];
+
+            // 2. แปลงเดือนไทยเป็นตัวเลข
+            $months = [
+                'ม.ค.' => '01', 'ก.พ.' => '02', 'มี.ค.' => '03', 'เม.ย.' => '04', 'พ.ค.' => '05', 'มิ.ย.' => '06',
+                'ก.ค.' => '07', 'ส.ค.' => '08', 'ก.ย.' => '09', 'ต.ค.' => '10', 'พ.ย.' => '11', 'ธ.ค.' => '12',
+                // เผื่อกรณีเขียนเต็ม (ถ้ามี)
+                'มกราคม' => '01', 'กุมภาพันธ์' => '02', // ... ใส่เพิ่มได้
+            ];
+
+            $month = $months[$thaiMonth] ?? null;
+            
+            // 3. แปลงปี พ.ศ. เป็น ค.ศ. (ลบ 543)
+            $year = (int)$thaiYear - 543;
+
+            if ($month && checkdate($month, $day, $year)) {
+                // ส่งค่ากลับเป็น Format มาตรฐาน Y-m-d (เช่น 2026-10-31)
+                return "{$year}-{$month}-{$day}"; 
+            }
+        }
+
+        return null; // ถ้าหาไม่เจอ หรือรูปแบบผิด
+    }
 }

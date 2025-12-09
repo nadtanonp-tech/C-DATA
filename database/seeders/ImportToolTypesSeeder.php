@@ -7,123 +7,98 @@ use Illuminate\Support\Facades\DB;
 
 class ImportToolTypesSeeder extends Seeder
 {
-    /**
-     * Clean ข้อความก่อนบันทึก DB
-     */
     private function cleanText($text)
     {
-        // null ให้เป็น null
-        if ($text === null) {
-            return null;
-        }
-
-        // กัน mb_substr พังถ้าเป็นตัวเลข
-        if (is_numeric($text)) {
-            $text = (string) $text;
-        }
-
-        // clean ช่องว่าง
+        if ($text === null) return null;
+        if (is_numeric($text)) $text = (string) $text;
         $text = trim($text);
-
-        // กันข้อความยาวเกินไป
         return mb_substr($text, 0, 1000);
     }
 
     public function run()
     {
-        // อ่านข้อมูลจาก DB เก่า (ถ้ามี connection แยกให้ใช้ DB::connection('mysql_old')->table('Type'))
-        $oldDataRows = DB::table('Type')->get();
+        $oldDataRows = DB::table('Type')->get(); 
 
         foreach ($oldDataRows as $oldRow) {
 
-            // ---------------------------------------------
-            // 0) เตรียมค่า code_type, name, size + fallback
-            // ---------------------------------------------
+            // 0) ข้อมูลหลัก
             $codeType = $this->cleanText($oldRow->CodeType ?? null);
-            $nameRaw  = $this->cleanText($oldRow->Name ?? null);
-            $size     = $this->cleanText($oldRow->Size ?? null);
+            if (empty($codeType)) continue;
 
-            // ถ้าไม่มี code_type เลย แนะนำให้ข้าม record นี้
-            if ($codeType === null || $codeType === '') {
-                // จะ log ไว้ก็ได้ เช่น logger()->warning(...);
-                continue;
-            }
-
-            // ถ้า name ว่าง → ใช้ size หรือไม่ก็ fallback เป็น TYPE {code_type}
+            $nameRaw = $this->cleanText($oldRow->Name ?? null);
+            $size    = $this->cleanText($oldRow->Size ?? null);
+            
             $name = $nameRaw;
-            if ($name === null || $name === '') {
-                if ($size !== null && $size !== '') {
-                    $name = $size;
-                } else {
-                    $name = 'TYPE ' . $codeType;
-                }
+            if (empty($name)) {
+                $name = (!empty($size)) ? $size : 'TYPE ' . $codeType;
             }
 
-            // -----------------------------------------------------
-            // 1) Dimension A–Q
-            // -----------------------------------------------------
-            $specs    = [];
+            // 1) แปลง A-Q เป็น JSON
+            $dimensionSpecs = []; 
             $prefixes = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q'];
 
             foreach ($prefixes as $char) {
-
-                // ----- Clean SmallBig -----
-                $rawVal   = $oldRow->{'SmallBig' . $char} ?? null;
-                $cleanVal = null;
-
+                // หา Trend
+                $rawVal = $oldRow->{'SmallBig' . $char} ?? null;
+                $trend = null;
                 if ($rawVal !== null) {
                     $trimVal = trim($rawVal);
+                    if (in_array($trimVal, ['ใหญ่ขึ้น', 'Big', 'Bigger'], true)) $trend = 'Bigger';
+                    elseif (in_array($trimVal, ['เล็กลง', 'Small', 'Smaller'], true)) $trend = 'Smaller';
+                    else $trend = $trimVal;
+                }
 
-                    if (in_array($trimVal, ['ใหญ่ขึ้น', 'Big', 'Bigger'], true)) {
-                        $cleanVal = 'Bigger';
-                    } elseif (in_array($trimVal, ['เล็กลง', 'Small', 'Smaller'], true)) {
-                        $cleanVal = 'Smaller';
-                    } else {
-                        $cleanVal = $trimVal;
+                $specsList = [];
+
+                // 🔥 ฟังก์ชันช่วยเก็บค่า (อัปเกรดใหม่: เพิ่ม $ignoreZero) 🔥
+                // $ignoreZero = true แปลว่า "ถ้าค่าเป็น 0 ให้ถือว่าไม่มีข้อมูล (Null)"
+                $addSpec = function($label, $minKey, $maxKey, $ignoreZero = false) use ($oldRow, &$specsList) {
+                    $min = $oldRow->{$minKey} ?? null;
+                    $max = $oldRow->{$maxKey} ?? null;
+                    
+                    // Logic พิเศษสำหรับ Lip: ถ้าเป็น 0 ให้กลายเป็น Null
+                    if ($ignoreZero) {
+                        if ((float)$min == 0) $min = null;
+                        if ((float)$max == 0) $max = null;
                     }
-                }
 
-                // ----- ฟิลด์หลักของ dimension -----
-                $data = [
-                    'max'        => $oldRow->{$char . '_Max'}     ?? null,
-                    'min'        => $oldRow->{$char . '_Min'}     ?? null,
-                    'lip_max'    => $oldRow->{$char . '_MaxLip'}  ?? null,
-                    'lip_min'    => $oldRow->{$char . '_MinLip'}  ?? null,
-                    'major_max'  => $oldRow->{$char . 'MajorMax'} ?? null,
-                    'major_min'  => $oldRow->{$char . 'MajorMin'} ?? null,
-                    'pitch_max'  => $oldRow->{$char . 'PitchMax'} ?? null,
-                    'pitch_min'  => $oldRow->{$char . 'PitchMin'} ?? null,
-                    'small_big'  => $cleanVal,
-                ];
+                    // ถ้ามีค่าอย่างใดอย่างหนึ่ง (ที่ไม่ใช่ Null) ให้บันทึก
+                    if ($min !== null || $max !== null) {
+                        $specsList[] = [
+                            'label' => $label,
+                            'min'   => $min,
+                            'max'   => $max,
+                        ];
+                    }
+                };
 
-                // ----- ฟิลด์พิเศษ -----
-                if ($char === 'A') {
-                    $data['std_part'] = $this->cleanText($oldRow->STDPartA ?? null);
-                }
+                // เรียกใช้งาน
+                $addSpec('STD', $char . '_Min', $char . '_Max');           
+                
+                // ✅ Lip: เปิดโหมด ignoreZero = true (ถ้าเป็น 0 ไม่ต้องเอามา)
+                $addSpec('Lip', $char . '_MinLip', $char . '_MaxLip', true);     
+                
+                $addSpec('Major', $char . 'MajorMin', $char . 'MajorMax'); 
+                $addSpec('Pitch', $char . 'PitchMin', $char . 'PitchMax'); 
 
                 if ($char === 'B') {
-                    $data['std_part'] = $this->cleanText($oldRow->STDPartB ?? null);
-                    $data['plug_max'] = $oldRow->BPlug_Max ?? null;
-                    $data['plug_min'] = $oldRow->BPlug_Min ?? null;
+                    $addSpec('Plug', 'BPlug_Min', 'BPlug_Max'); 
                 }
 
-                if ($char === 'D') {
-                    $data['std_checking_fit']  = $this->cleanText($oldRow->STDCheckingFitD  ?? null);
-                    $data['std_checking_wear'] = $this->cleanText($oldRow->STDCheckingWearD ?? null);
+                if (!empty($specsList)) {
+                    $dimensionSpecs[] = [
+                        'point' => $char,
+                        'trend' => $trend,
+                        'specs' => $specsList,
+                    ];
                 }
-
-                // เก็บเฉพาะค่าไม่เป็น null
-                $specs[$char] = array_filter($data, fn($v) => !is_null($v));
             }
 
-            // -----------------------------------------------------
-            // 2) UI Options S1–S15, Cs1–Cs15
-            // -----------------------------------------------------
+            // 2) UI Options
             $uiOptions = [];
             for ($i = 1; $i <= 15; $i++) {
                 $sVal  = $oldRow->{'S' . $i}  ?? null;
                 $csVal = $oldRow->{'Cs' . $i} ?? null;
-
                 if ($sVal || $csVal) {
                     $uiOptions[] = [
                         'index' => $i,
@@ -133,39 +108,26 @@ class ImportToolTypesSeeder extends Seeder
                 }
             }
 
-            // -----------------------------------------------------
-            // 3) INSERT ข้อมูลลง table tool_types
-            // -----------------------------------------------------
-            DB::table('tool_types')->insert([
-                'code_type'     => $codeType,          // ใช้ตัวแปรที่เตรียมไว้
-                'name'          => $name,              // ใช้ name ที่มี fallback แล้ว
-                'size'          => $size,
-
-                // รูปจะจัดการทีหลัง → null ไว้ก่อน
-                'picture_path'  => null,
-
-                // ตัวเลขไม่ต้อง clean
-                'pr_rate'       => $oldRow->PRRate,
-
-                // ข้อความที่มักมีขยะ → clean ให้หมด
-                'reference_doc' => $this->cleanText($oldRow->Reference ?? null),
-                'drawing_no'    => $this->cleanText($oldRow->DrawingNo ?? null),
-                'remark'        => $this->cleanText($oldRow->Remark ?? null),
-
-                'pre'           => $this->cleanText($oldRow->Pre ?? null),
-
-                // ถ้า cal_flag เป็น VARCHAR → cleanText OK
-                'cal_flag'      => $this->cleanText($oldRow->CAL ?? null),
-
-                'input_data'    => $this->cleanText($oldRow->InputData ?? null),
-
-                // JSON เก็บเป็น UTF-8 แบบไม่ escape
-                'dimension_specs' => json_encode($specs, JSON_UNESCAPED_UNICODE),
-                'ui_options'      => json_encode($uiOptions, JSON_UNESCAPED_UNICODE),
-
-                'created_at'    => now(),
-                'updated_at'    => now(),
-            ]);
+            // 3) Update Or Insert
+            DB::table('tool_types')->updateOrInsert(
+                ['code_type' => $codeType],
+                [
+                    'name'            => $name,
+                    'size'            => $size,
+                    'picture_path'    => null,
+                    'pr_rate'         => $oldRow->PRRate,
+                    'reference_doc'   => $this->cleanText($oldRow->Reference ?? null),
+                    'drawing_no'      => $this->cleanText($oldRow->DrawingNo ?? null),
+                    'remark'          => $this->cleanText($oldRow->Remark ?? null),
+                    'pre'             => $this->cleanText($oldRow->Pre ?? null),
+                    'cal_flag'        => $this->cleanText($oldRow->CAL ?? null),
+                    'input_data'      => $this->cleanText($oldRow->InputData ?? null),
+                    'dimension_specs' => json_encode($dimensionSpecs, JSON_UNESCAPED_UNICODE),
+                    'ui_options'      => json_encode($uiOptions, JSON_UNESCAPED_UNICODE),
+                    'created_at'      => now(),
+                    'updated_at'      => now(),
+                ]
+            );
         }
     }
 }

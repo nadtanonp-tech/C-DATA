@@ -11,6 +11,8 @@ RUN apt-get update && apt-get install -y \
     libzip-dev \
     libicu-dev \
     libpq-dev \
+    libjpeg62-turbo-dev \
+    libfreetype6-dev \
     zip \
     unzip \
     nodejs \

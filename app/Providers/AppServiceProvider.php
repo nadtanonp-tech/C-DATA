@@ -23,5 +23,9 @@ class AppServiceProvider extends ServiceProvider
     {
         // สั่งให้ InstrumentObserver คอยจับตาดู Instrument
         Instrument::observe(InstrumentObserver::class);
+
+        if ($this->app->environment('production')) {
+            \Illuminate\Support\Facades\URL::forceScheme('https');
+        }
     }
 }

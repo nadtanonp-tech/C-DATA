@@ -126,17 +126,16 @@ class InstrumentResource extends Resource
                                 ->searchable()
                                 ->preload()
                                 ->placeholder('เลือกแผนก')
-                                ->createOptionForm
-                            ([ // ✨ ปุ่มวิเศษ: กดบวกเพิ่มแผนกใหม่ได้ทันที
-                            TextInput::make('name')
-                                    ->label('ชื่อแผนก')
-                                    ->required()
-                                    ->unique('departments', 'name'),
+                                ->createOptionForm ([ // ✨ ปุ่มวิเศษ: กดบวกเพิ่มแผนกใหม่ได้ทันที
+                                    TextInput::make('name')
+                                            ->label('ชื่อแผนก')
+                                            ->required()
+                                            ->unique('departments', 'name'),
                                 ])
-                                    ->editOptionForm([ // (แถม) ปุ่มแก้ไขชื่อแผนก
-                                        TextInput::make('name')
-                                        ->label('ชื่อแผนก')
-                                        ->required(),
+                                ->editOptionForm([ // (แถม) ปุ่มแก้ไขชื่อแผนก
+                                    TextInput::make('name')
+                                            ->label('ชื่อแผนก')
+                                            ->required(),
                                 ]),
                             TextInput::make('machine_name')
                                 ->label('ประจําเครื่องจักร (Machine)'),

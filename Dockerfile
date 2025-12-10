@@ -63,17 +63,25 @@ RUN echo '<Directory /var/www/html/public>\n\
 </Directory>' > /etc/apache2/conf-available/laravel.conf
 RUN a2enconf laravel
 
-# Create startup script
-RUN echo '#!/bin/bash\n\
-php artisan config:cache\n\
-php artisan route:cache\n\
-php artisan view:cache\n\
-php artisan migrate --force\n\
-apache2-foreground' > /usr/local/bin/start.sh && \
-chmod +x /usr/local/bin/start.sh
+# Copy startup script
+COPY <<EOF /usr/local/bin/start.sh
+#!/bin/bash
+set -e
+
+echo "Running Laravel setup..."
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+php artisan migrate --force
+
+echo "Starting Apache..."
+apache2-foreground
+EOF
+
+RUN chmod +x /usr/local/bin/start.sh
 
 # Expose port 80
 EXPOSE 80
 
 # Start with custom script
-CMD ["/usr/local/bin/start.sh"]
+CMD ["/bin/bash", "/usr/local/bin/start.sh"]

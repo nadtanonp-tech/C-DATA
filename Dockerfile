@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     libzip-dev \
     libicu-dev \
+    libpq-dev \
     zip \
     unzip \
     nodejs \
@@ -19,8 +20,9 @@ RUN apt-get update && apt-get install -y \
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install PHP extensions (including intl and zip that were missing)
-RUN docker-php-ext-install pdo_pgsql mbstring exif pcntl bcmath gd zip intl
 RUN docker-php-ext-configure intl
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg
+RUN docker-php-ext-install pdo_pgsql mbstring exif pcntl bcmath gd zip intl
 
 # Enable Apache mod_rewrite
 RUN a2enmod rewrite

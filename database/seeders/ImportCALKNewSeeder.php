@@ -10,107 +10,190 @@ class ImportCALKNewSeeder extends Seeder
 {
     public function run()
     {
-        // 1. ดึงข้อมูลจากตารางเก่า (CALKNew)
+        // 🔥 ลบข้อมูลเก่าทิ้งก่อน (ถ้ามี)
+        $this->command->warn('⚠️  กำลังลบข้อมูลเก่าใน calibration_logs...');
+        DB::table('calibration_logs')
+            ->whereNotNull('id') // ลบทั้งหมด (ปรับตามต้องการ)
+            ->delete();
+        $this->command->info('✅ ลบข้อมูลเก่าเสร็จสิ้น');
+        
+        // 1. ดึงข้อมูลจากตารางเก่า
         $oldLogs = DB::table('CALKNew')->get();
+        $this->command->info("📊 พบข้อมูล {$oldLogs->count()} รายการจาก CALKNew");
+
+        // 🔥 OPTIMIZATION: ดึง Instrument ทั้งหมดมารอไว้ใน Array (Key=CodeNo, Value=ID)
+        $instrumentMap = DB::table('instruments')
+                            ->pluck('id', 'code_no')
+                            ->mapWithKeys(fn($id, $code) => [strtoupper(trim($code)) => $id])
+                            ->toArray();
 
         $batchData = [];
         $batchSize = 50; 
+        $imported = 0;
+        $skipped = 0;
 
         foreach ($oldLogs as $row) {
             
-            // 2. หา ID เครื่องมือ
+            // ใช้ CodeNo จากไฟล์เก่า ไปเทียบหา ID ใน Array ที่เตรียมไว้
+            $legacyCode = strtoupper(trim($row->CodeNo));
+            
+            if (!isset($instrumentMap[$legacyCode])) {
+                // ถ้าหาไม่เจอ ให้ข้าม (หรือ Log เก็บไว้)
+                $skipped++;
+                $this->command->warn("⚠️  ข้ามรายการ: CodeNo {$legacyCode} ไม่พบใน instruments");
+                continue; 
+            }
+            $instrumentId = $instrumentMap[$legacyCode];
+
+            // 🔥 ดึงข้อมูล Instrument พร้อม ToolType เพื่อเอา dimension_specs
             $instrument = DB::table('instruments')
-                            ->where('code_no', trim($row->CodeNo))
-                            ->select('id')
-                            ->first();
+                ->where('id', $instrumentId)
+                ->first();
+            
+            $dimensionSpecs = [];
+            if ($instrument && $instrument->tool_type_id) {
+                $toolType = DB::table('tool_types')
+                    ->where('id', $instrument->tool_type_id)
+                    ->first();
+                
+                if ($toolType && $toolType->dimension_specs) {
+                    // dimension_specs เป็น JSON ต้อง decode
+                    $dimensionSpecs = json_decode($toolType->dimension_specs, true) ?? [];
+                }
+            }
 
-            if (!$instrument) continue; 
+            // สร้าง Map สำหรับหา spec ของแต่ละ point
+            $specsMap = [];
+            foreach ($dimensionSpecs as $spec) {
+                if (isset($spec['point'])) {
+                    $specsMap[$spec['point']] = $spec;
+                }
+            }
 
-            // 3. ปั้น JSON (ความยากอยู่ที่ตรงนี้ เพราะฟิลด์เยอะมาก)
-            $results = [];
+            // 3. ปั้น JSON ในรูปแบบใหม่ที่ตรงกับ CalibrationKNewResource Form
+            $readingsArray = [];
             $chars = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q'];
 
             foreach ($chars as $char) {
-                // เก็บค่าพื้นฐานที่มีทุกตัว
-                $item = [
-                    'Result' => $row->{'Result'.$char} ?? null,
-                    'Lip'    => $row->{'Result'.$char.'Lip'} ?? null,
-                    'Judge'  => $row->{'Judge'.$char} ?? null,
-                    'Grade'  => $row->{'Grade'.$char} ?? null,
+                // ตรวจสอบว่ามีข้อมูลในจุดนี้หรือไม่ (ดูจาก Result{Point})
+                $reading = $row->{'Result'.$char} ?? null;
+                
+                if (is_null($reading) || $reading === '') {
+                    continue; // ข้ามจุดที่ไม่มีข้อมูล
+                }
+
+                // 🔥 ดึงข้อมูล spec จาก ToolType (ถ้ามี)
+                $specData = $specsMap[$char] ?? null;
+                
+                // ค่า default ถ้าไม่มี spec
+                $trend = 'Smaller';
+                $minSpec = '0';
+                $maxSpec = '100';
+                $stdLabel = 'STD';
+                $allSpecs = [['label' => 'STD', 'min' => '0', 'max' => '100']];
+
+                // ถ้ามี spec data จาก ToolType ให้ใช้ค่าจริง
+                if ($specData) {
+                    $trend = $specData['trend'] ?? 'Smaller';
+                    
+                    // ดึง spec จาก specs array (ใช้ spec แรก)
+                    if (isset($specData['specs']) && is_array($specData['specs']) && count($specData['specs']) > 0) {
+                        $mainSpec = $specData['specs'][0];
+                        $minSpec = (string)($mainSpec['min'] ?? '0');
+                        $maxSpec = (string)($mainSpec['max'] ?? '100');
+                        $stdLabel = $mainSpec['label'] ?? 'STD';
+                        
+                        // all_specs เก็บทั้ง array
+                        $allSpecs = $specData['specs'];
+                    }
+                }
+
+                // 🎯 โครงสร้างที่ตรงตามตัวอย่าง JSON
+                $readingItem = [
+                    'point' => $char,
+                    'trend' => $trend,
+                    'min_spec' => $minSpec,
+                    'max_spec' => $maxSpec,
+                    'std_label' => $stdLabel,
+                    'all_specs' => $allSpecs,
+                    'reading' => (string)$reading, // ResultA -> reading
+                    'error' => '0.0000', // ไม่มีในฐานข้อมูล ใส่ค่า default
+                    'Judgement' => $row->{'Judge'.$char} ?? null, // JudgeA -> Judgement
+                    'grade' => $row->{'Grade'.$char} ?? null, // GradeA -> grade
                 ];
 
-                // เก็บค่าพิเศษ (Special Cases)
-                // กลุ่ม A, B, C มี Major/Pitch
-                if (in_array($char, ['A', 'B', 'C'])) {
-                    $item['Major']       = $row->{'Result'.$char.'Major'} ?? null;
-                    $item['Major_Judge'] = $row->{'Judge'.$char.'Major'} ?? null;
-                    $item['Pitch']       = $row->{'Result'.$char.'Pitch'} ?? null;
-                    $item['Pitch_Judge'] = $row->{'Judge'.$char.'Pitch'} ?? null;
-                }
-                
-                // กลุ่ม A, B มี Part
-                if (in_array($char, ['A', 'B'])) {
-                    $item['Part']        = $row->{'Result'.$char.'Part'} ?? null;
-                }
+                // กรองค่า null ออก
+                $readingItem = array_filter($readingItem, function($v) { 
+                    return !is_null($v) && $v !== ''; 
+                });
 
-                // กลุ่ม D มี Fit/Wear
-                if ($char === 'D') {
-                    $item['Fit']         = $row->{'ResultDFit'} ?? null;
-                    $item['Fit_Judge']   = $row->{'JudgeDFit'} ?? null;
-                    $item['Wear']        = $row->{'ResultDWear'} ?? null;
-                    $item['Wear_Judge']  = $row->{'JudgeDWear'} ?? null;
-                }
-
-                // กรองค่าว่างออก (จะได้ไม่รก JSON)
-                $cleanedItem = array_filter($item, function($v) { return !is_null($v) && $v !== ''; });
-                
-                if (!empty($cleanedItem)) {
-                    $results[$char] = $cleanedItem;
-                }
+                $readingsArray[] = $readingItem;
             }
 
-            // รวบรวม Master ที่ใช้ (1-7)
-            $masters = [];
-            for($i=1; $i<=7; $i++) {
-                if(!empty($row->{'CALMaster'.$i})) $masters[] = $row->{'CALMaster'.$i};
-            }
-
-            // รวมร่าง JSON
+            // 🎯 โครงสร้าง calibration_data ที่ตรงกับ Form
             $calData = [
-                'Type' => 'K-Gauge / Special',
-                'Readings' => $results,
-                'MastersUsed' => $masters,
-                'TotalGrade' => $row->Grade
+                'readings' => $readingsArray,
             ];
 
-            // 4. เตรียมข้อมูลบันทึก
+            // Validate result_status (Pass/Reject only)
+            $resultStatus = trim($row->Total ?? '');
+            if (!in_array($resultStatus, ['Pass', 'Reject'])) {
+                $resultStatus = null;
+            }
+
+            // Validate cal_level (A/B/C only)
+            $calLevel = trim($row->Grade ?? '');
+            if (!in_array($calLevel, ['A', 'B', 'C'])) {
+                $calLevel = null;
+            }
+
+            // Remark (null ถ้าว่าง)
+            $remark = trim($row->RemarkC ?? '');
+            $remark = ($remark === '') ? null : $remark;
+
+            // 4. เตรียมข้อมูลบันทึก - ตรงกับ migration ปัจจุบัน
             $batchData[] = [
-                'instrument_id' => $instrument->id,
+                'instrument_id' => $instrumentId,
                 'cal_date'      => $this->parseDate($row->CalDate),
                 'next_cal_date' => $this->parseDate($row->DueDate),
-                'cal_by'        => trim($row->Section),
-                'cal_place'     => 'Internal',
+                'cal_by'        => trim($row->Section ?? '') ?: null,
+                'cal_place'     => 'Internal', // ค่าคงที่
                 
+                // 🔥 JSON ที่ตรงกับ Form
                 'calibration_data' => json_encode($calData, JSON_UNESCAPED_UNICODE),
                 
-                'environment'   => "Temp: {$row->Temp} / Humid: {$row->Humidity}",
-                'result_status' => trim($row->Total),
-                'remark'        => trim($row->RemarkC),
-                'legacy_source_table' => 'CALKNew',
+                // 🔥 Environment แบบ JSON
+                'environment'   => json_encode([
+                    'temperature' => $row->Temp ?? null,
+                    'humidity' => $row->Humidity ?? null,
+                ], JSON_UNESCAPED_UNICODE),
+                
+                // 🔥 ใช้ชื่อฟิลด์ที่ถูกต้องพร้อม validation
+                'result_status' => $resultStatus, // Pass/Reject หรือ null
+                'cal_level'     => $calLevel, // A/B/C หรือ null
+                'remark'        => $remark, // ข้อความหรือ null
                 
                 'created_at'    => now(),
                 'updated_at'    => now(),
             ];
 
+            $imported++;
+
             if (count($batchData) >= $batchSize) {
                 DB::table('calibration_logs')->insert($batchData);
+                $this->command->info("📝 บันทึกแล้ว {$imported} รายการ...");
                 $batchData = [];
             }
         }
 
+        // Insert ข้อมูลที่เหลือ
         if (!empty($batchData)) {
             DB::table('calibration_logs')->insert($batchData);
         }
+
+        $this->command->info('');
+        $this->command->info('✅ นำเข้าข้อมูลเสร็จสิ้น!');
+        $this->command->info("📊 สถิติ: นำเข้า {$imported} รายการ | ข้าม {$skipped} รายการ");
     }
 
     private function parseDate($dateVal)
@@ -118,6 +201,8 @@ class ImportCALKNewSeeder extends Seeder
         if (!$dateVal) return null;
         try {
             return Carbon::parse($dateVal)->format('Y-m-d');
-        } catch (\Exception $e) { return null; }
+        } catch (\Exception $e) { 
+            return null; 
+        }
     }
 }

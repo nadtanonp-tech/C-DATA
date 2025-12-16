@@ -6,8 +6,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\ToolType;
 use App\Models\Department;
-
 
 class Instrument extends Model
 {
@@ -39,9 +39,33 @@ class Instrument extends Model
     {
         return $this->hasMany(CalibrationLog::class);
     }
+
     // ความสัมพันธ์: ของเครื่องมือเป็นของแผนกไหน?
     public function department()
     {
         return $this->belongsTo(Department::class);
+    }
+
+    /**
+     * 🔥 Boot Method - ทำงานอัตโนมัติทุกครั้งที่ Save
+     */
+    protected static function boot()
+    {
+        parent::boot();
+        
+        // Event: ก่อนที่จะบันทึกข้อมูล (Create หรือ Update)
+        static::saving(function ($instrument) {
+            // ถ้ามีการเลือก tool_type_id
+            if ($instrument->tool_type_id) {
+                // ดึงข้อมูล ToolType มา
+                $toolType = ToolType::find($instrument->tool_type_id);
+                
+                // ถ้าเจอข้อมูล
+                if ($toolType) {
+                    // บังคับให้ name = code_type ของ tool_type
+                    $instrument->name = $toolType->code_type;
+                }
+            }
+        });
     }
 }

@@ -26,9 +26,9 @@ class ToolTypeResource extends Resource
     protected static ?string $model = ToolType::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-tag'; // ไอคอนป้ายแท็ก
-    protected static ?string $navigationGroup = 'Master Data'; // จัดกลุ่มเมนู
+    protected static ?string $navigationGroup = 'Instrument Data'; // จัดกลุ่มเมนู
     protected static ?string $navigationLabel = 'ประเภทเครื่องมือ (Types)';
-    protected static ?int $navigationSort = 1; // เรียงไว้บนสุด
+    protected static ?int $navigationSort = 2; // เรียงไว้บนสุด
 
     public static function form(Form $form): Form
     {
@@ -38,12 +38,12 @@ class ToolTypeResource extends Resource
                     ->schema([
                         Grid::make(3)->schema([
                             TextInput::make('code_type')
-                                ->label('รหัสประเภท (Code)')
+                                ->label('รหัสประเภทเครื่องมือ (ID Code Type)')
                                 ->required()
                                 ->unique(ignoreRecord: true),
 
                             TextInput::make('name')
-                                ->label('ชื่อประเภท (Name)')
+                                ->label('ชื่อประเภทเครื่องมือ (Name Type)')
                                 ->required(),
 
                             TextInput::make('drawing_no')
@@ -52,14 +52,14 @@ class ToolTypeResource extends Resource
                                 ->required(),
                         ]),
                         TextInput::make('size')
-                                ->label('ขนาด (Size)'),
+                                ->label('ขนาด (Size Type)'),
 
                         Grid::make(2)->schema([
                             Textarea::make('remark')
                                 ->label('หมายเหตุ'),
                             
                             FileUpload::make('picture_path')
-                                ->label('รูปภาพประเภทเครื่องมือ')
+                                ->label('รูปภาพอ้างอิง (Drawing Reference)')
                                 ->image()
                                 ->directory('picture_path')
                                 ->visibility('public')
@@ -154,7 +154,7 @@ class ToolTypeResource extends Resource
         return $table
             ->columns([
                 TextColumn::make('code_type')
-                    ->label('Code')
+                    ->label('ID Code Type')
                     ->sortable()
                     ->searchable()
                     ->weight('bold'),

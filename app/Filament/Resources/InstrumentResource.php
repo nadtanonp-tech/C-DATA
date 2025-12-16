@@ -31,7 +31,8 @@ class InstrumentResource extends Resource
     protected static ?string $model = Instrument::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-wrench-screwdriver'; // เปลี่ยนไอคอนได้
-    protected static ?string $navigationLabel = 'ทะเบียนเครื่องมือ';
+    protected static ?string $navigationLabel = 'ทะเบียนเครื่องมือ (Instrument)';
+    protected static ?string $navigationGroup = 'Instrument Data';
     protected static ?string $modelLabel = 'Instrument';
 
     public static function form(Form $form): Form
@@ -43,36 +44,36 @@ class InstrumentResource extends Resource
                     ->description('ข้อมูลระบุตัวตนของเครื่องมือวัด')
                     ->collapsible()
                     ->schema([
-                        Grid::make(4)->schema([ // แบ่ง 4 คอลัมน์
+                        Grid::make(6)->schema([ // แบ่ง 4 คอลัมน์
                             TextInput::make('code_no')
-                                ->label('รหัสทรัพย์สิน (Code No)')
+                                ->label('รหัสประจําตัวเครื่องมือ (ID Code Instrument)')
                                 ->required()
+                                ->columnSpan(2)
                                 ->unique(ignoreRecord: true) // ห้ามซ้ำ (ยกเว้นตัวมันเองตอนแก้)
-                                ->placeholder('เช่น 5-08-0001'),
+                                ->placeholder('เช่น x-xx-xxxx'),
         
                             Select::make('tool_type_id')
-                                ->label('ประเภทเครื่องมือ (Type)')
+                                ->label('ประเภทเครื่องมือ (Type Instrument)')
                                 ->relationship('toolType', 'name')
                                 ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->code_type} - {$record->name} ( {$record->size} )")
                                 ->searchable(['code_type', 'name'])
                                 ->preload()
                                 ->required()
-                                ->columnSpan(2)
+                                ->columnSpan(3)
                                 ->placeholder('เลือกประเภทเครื่องมือ')
-                                // 🔥 จุดสำคัญ: ต้องมี live() เพื่อให้ทำงานทันที 🔥
-                                ->live() 
+                                ->live() // เก็บไว้เพื่อ preview
                                 ->afterStateUpdated(function (Set $set, ?string $state) {
-                                    // ถ้ามีการเลือกค่า ($state คือ ID ของ Type)
+                                    // ทำแค่ preview เท่านั้น (ไม่ save)
                                     if ($state) {
                                         $type = ToolType::find($state);
-            
                                         if ($type) {
-                                            // 🟢 สั่งให้ช่อง 'name' เปลี่ยนค่าเป็น 'code_type' ของแม่
-                                            // (ถ้าอยากได้ชื่อ ให้แก้เป็น $type->name)
-                                            $set('name', $type->code_type); 
+                                            $set('name_preview', $type->code_type); 
                                         }
+                                    } else {
+                                        $set('name_preview', null);
                                     }
                                 }),
+                            
                             TextInput::make('serial_no')
                                 ->label('Serial No.'),
                             ]),
@@ -175,22 +176,23 @@ class InstrumentResource extends Resource
                         Grid::make(4)->schema([
                             
                             TextInput::make('percent_adj')
-                                ->label('Percent Adjust')
+                                ->label('เกณฑ์ในการตัดเกรด (Percent Adjust)')
                                 ->numeric()
+                                ->default(10)
                                 ->suffix('%'),
 
                             TextInput::make('criteria_1')
-                                ->label('Criteria 1')
+                                ->label('เกณฑ์การยอมรับ (Criteria 1)')
                                 ->numeric()
                                 ->suffix('%F.S') // ใส่หน่วยต่อท้าย
-                                ->placeholder('0.000'),
+                                ->placeholder('+0.000'),
 
                             // กล่องที่ 2
                             TextInput::make('criteria_2')
-                                ->label('Criteria 2')
+                                ->label('เกณฑ์การยอมรับ (Criteria 2)')
                                 ->numeric()
                                 ->suffix('%F.S')
-                                ->placeholder('0.000'),
+                                ->placeholder('-0.000'),
 
                             TextInput::make('reference_doc')
                             ->label('Reference Pressure'),
@@ -242,7 +244,7 @@ class InstrumentResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
                 // 2. รหัสทรัพย์สิน (ค้นหาได้ + ก๊อปปี้ได้)
                 TextColumn::make('code_no')
-                    ->label('ID No.')
+                    ->label('ID Code Instrument')
                     ->searchable()
                     ->sortable()
                     ->weight('bold')
@@ -250,14 +252,14 @@ class InstrumentResource extends Resource
 
                 // 3. ชื่อเครื่องมือ
                 TextColumn::make('toolType.name')
-                    ->label('Instrument Name')
+                    ->label('Type Name')
                     ->searchable()
                     ->limit(30) // ตัดคำถ้ายาวเกิน
                     ->tooltip(fn ($state) => $state), 
 
                 // 4. รหัสประเภทเครื่องมือ
                 TextColumn::make('toolType.code_type')
-                    ->label('CodeType')
+                    ->label('Code Type')
                     ->searchable()
                     ->limit(30) // ตัดคำถ้ายาวเกิน
                     ->tooltip(fn ($state) => $state), // เอาเมาส์ชี้ดูชื่อเต็ม

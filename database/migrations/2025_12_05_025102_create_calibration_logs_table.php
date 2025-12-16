@@ -23,13 +23,10 @@ return new class extends Migration
             // *** พระเอกของเรา: เก็บค่า Major1-1, Pitch1-1... ทั้งหมดลงในนี้ ***
             $table->json('calibration_data')->nullable(); 
 
-            $table->string('environment')->nullable();  // เก็บ Temp/Humidity (เช่น "25C / 60%")
+            $table->json('environment')->nullable();  // 🔥 เก็บ Temp/Humidity เป็น JSON: {"temperature":"25","humidity":"60"}
             $table->string('result_status')->nullable(); // Pass / Fail
+            $table->string('cal_level')->nullable();     // 🔥 ระดับ A / B / C
             $table->text('remark')->nullable();
-            // 🔴 เพิ่มบรรทัดนี้ครับ 🔴
-            $table->string('grade_result')->nullable();
-            // เก็บชื่อ Table เดิมไว้ดูเล่น (เผื่อ Trace กลับ)
-            $table->string('legacy_source_table')->nullable(); 
 
             $table->timestamps();
         });

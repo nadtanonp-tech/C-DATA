@@ -72,12 +72,12 @@ class ToolTypeResource extends Resource
                     ->schema([
                         Repeater::make('dimension_specs')
                             ->label('รายการจุดตรวจสอบ (Points)')
-                            ->itemLabel(fn (array $state): ?string => 'ตาราง ' . ($state['point'] ?? '?'))
+                            ->itemLabel(fn (array $state): ?string => 'Point ' . ($state['point'] ?? '?'))
                             ->schema([
                                 // --- ส่วนหัวของแต่ละตาราง (ชื่อตาราง + แนวโน้ม) ---
                         Grid::make(2)->schema([
                             TextInput::make('point')
-                                ->label('ชื่อตาราง / จุดตรวจสอบ (เช่น A, B, E)')
+                                ->label('ชื่อจุดตรวจสอบ (เช่น A, B, C)')
                                 ->required()
                                 ->placeholder('ใส่ชื่อจุด (A, B...)'),
 
@@ -98,10 +98,16 @@ class ToolTypeResource extends Resource
                             ->deleteAction(fn ($action) => $action->icon('heroicon-o-minus-circle'))
                             ->schema([
                                 Grid::make(3)->schema([
-                                    TextInput::make('label')
+                                    Select::make('label')
                                         ->label('ชื่อฟิลด์ (Field Name)')
-                                        ->required()
-                                        ->placeholder('เช่น STD, Major'),
+                                        ->options([
+                                            'STD' => 'STD',
+                                            'Major' => 'Major',
+                                            'Pitch' => 'Pitch',
+                                            'Plug' => 'Plug',
+                                            'วัดเกลียว' => 'วัดเกลียว',
+                                        ])
+                                        ->required(),
 
                                     TextInput::make('min')
                                         ->label('Min')
@@ -128,9 +134,6 @@ class ToolTypeResource extends Resource
                                 'trend' => 'Smaller',
                                 'specs' => [
                                     ['label' => 'STD', 'min' => null, 'max' => null],
-                                    ['label' => 'Major', 'min' => null, 'max' => null],
-                                    ['label' => 'Pitch', 'min' => null, 'max' => null],
-                                    ['label' => 'วัดเกลียว', 'min' => null, 'max' => null],
                                 ]
                             ],
                             [
@@ -138,10 +141,6 @@ class ToolTypeResource extends Resource
                                 'trend' => 'Smaller',
                                 'specs' => [
                                     ['label' => 'STD', 'min' => null, 'max' => null],
-                                    ['label' => 'Major', 'min' => null, 'max' => null],
-                                    ['label' => 'Pitch', 'min' => null, 'max' => null],
-                                    ['label' => 'Plug', 'min' => null, 'max' => null], // B มี Plug
-                                    ['label' => 'วัดเกลียว', 'min' => null, 'max' => null],
                                 ]
                             ],
                         ]),

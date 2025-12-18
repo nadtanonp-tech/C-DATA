@@ -182,17 +182,30 @@ class InstrumentResource extends Resource
                                 ->suffix('%'),
 
                             TextInput::make('criteria_1')
-                                ->label('เกณฑ์การยอมรับ (Criteria 1)')
+                                ->label('เกณฑ์ในการยอมรับค่าบวก (Criteria 1)')
                                 ->numeric()
-                                ->suffix('%F.S') // ใส่หน่วยต่อท้าย
-                                ->placeholder('+0.000'),
+                                ->minValue(0)
+                                ->suffix(fn (Forms\Get $get) => $get('criteria_unit') ?? '%F.S')
+                                ->default('0.00'),
 
-                            // กล่องที่ 2
                             TextInput::make('criteria_2')
-                                ->label('เกณฑ์การยอมรับ (Criteria 2)')
+                                ->label('เกณฑ์ในการยอมรับค่าลบ (Criteria 2)')
                                 ->numeric()
-                                ->suffix('%F.S')
-                                ->placeholder('-0.000'),
+                                ->maxValue(0) // เปลี่ยนเป็น 0 (เพราะเป็นค่าลบ) หรือ -9999 แล้วแต่ logic
+                                ->suffix(fn (Forms\Get $get) => $get('criteria_unit') ?? '%F.S')
+                                ->default('-0.00'),
+
+                            // เพิ่มตัวเลือกหน่วย (Unit)
+                            Select::make('criteria_unit')
+                                ->label('หน่วย (Unit)')
+                                ->options([
+                                    '%F.S' => '%F.S',
+                                    'mm.' => 'mm.',
+            
+                                ])
+                                ->default('%F.S')
+                                ->live() // ให้ทำงานทันทีเพื่อเปลี่ยน suffix
+                                ->required(),
 
                             TextInput::make('reference_doc')
                             ->label('Reference Pressure'),

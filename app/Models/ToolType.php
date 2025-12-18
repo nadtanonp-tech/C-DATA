@@ -19,6 +19,7 @@ class ToolType extends Model
     protected $casts = [
         'dimension_specs' => 'array',
         'ui_options'      => 'array',
+        'criteria_unit'   => 'array',
     ];
 
     // ความสัมพันธ์: 1 Type มีเครื่องมือลูกได้หลายตัว

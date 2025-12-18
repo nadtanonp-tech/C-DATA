@@ -94,7 +94,7 @@ class ImportToolTypesSeeder extends Seeder
                 }
             }
 
-            // 2) UI Options
+            // 2) UI Options (S1-S15, Cs1-Cs15)
             $uiOptions = [];
             for ($i = 1; $i <= 15; $i++) {
                 $sVal  = $oldRow->{'S' . $i}  ?? null;
@@ -104,6 +104,32 @@ class ImportToolTypesSeeder extends Seeder
                         'index' => $i,
                         's'     => $this->cleanText($sVal),
                         'cs'    => $this->cleanText($csVal),
+                    ];
+                }
+            }
+
+            // 3) Criteria Unit Options (Range1-15, Criteria1-15, Criteria1-1..15-1, Unit1-15)
+            $criteriaUnitOptions = [];
+            for ($i = 1; $i <= 15; $i++) {
+                // Construct column names dynamically
+                $rangeKey      = 'Range' . $i;
+                $criteriaKey   = 'Criteria' . $i;
+                $criteria1Key  = 'Criteria' . $i . '-' . $i; // e.g., Criteria1-1, Criteria2-2
+                $unitKey       = 'Unit' . $i;
+
+                $rangeVal      = $this->cleanText($oldRow->{$rangeKey} ?? null);
+                $criteriaVal   = $this->cleanText($oldRow->{$criteriaKey} ?? null);
+                $criteria1Val  = $this->cleanText($oldRow->{$criteria1Key} ?? null);
+                $unitVal       = $this->cleanText($oldRow->{$unitKey} ?? null);
+
+                // Add to list if any value exists exists
+                if ($rangeVal || $criteriaVal || $criteria1Val || $unitVal) {
+                    $criteriaUnitOptions[] = [
+                        'index'       => $i,
+                        'range'       => $rangeVal,
+                        'criteria_1'  => $criteriaVal,   // Maps to CriteriaX
+                        'criteria_2'  => $criteria1Val,  // Maps to CriteriaX-X
+                        'unit'        => $unitVal,
                     ];
                 }
             }
@@ -124,6 +150,7 @@ class ImportToolTypesSeeder extends Seeder
                     'input_data'      => $this->cleanText($oldRow->InputData ?? null),
                     'dimension_specs' => json_encode($dimensionSpecs, JSON_UNESCAPED_UNICODE),
                     'ui_options'      => json_encode($uiOptions, JSON_UNESCAPED_UNICODE),
+                    'criteria_unit'   => json_encode($criteriaUnitOptions, JSON_UNESCAPED_UNICODE),
                     'created_at'      => now(),
                     'updated_at'      => now(),
                 ]

@@ -34,7 +34,7 @@ public function up()
         
         // --- หมวด S & Cs (JSON) ---
         // เก็บ: S1-S15, Cs1-Cs15
-        $table->json('ui_options')->nullable();      
+        $table->json('ui_options')->nullable();   // ตารางนี้ไม่ได้ใช้เเล้ว   
 
         $table->timestamps();
     });

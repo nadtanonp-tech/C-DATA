@@ -44,8 +44,8 @@ return new class extends Migration
             // --- Specific Specs (ข้อมูลเฉพาะตัวที่อาจต่างจาก Type) ---
             $table->string('range_spec')->nullable();      // Range (เพิ่มใหม่)
             $table->string('percent_adj')->nullable();     // PercentAdj (เพิ่มใหม่)
-            $table->decimal('criteria_1', 10, 4)->nullable(); // เก็บทศนิยม 4 ตำแหน่ง
-            $table->decimal('criteria_2', 10, 4)->nullable(); // Criteria_1 + Criteria1_1 (เพิ่มใหม่)
+            $table->decimal('criteria_1', 10, 4)->nullable(); // เก็บทศนิยม 4 ตำแหน่ง ตารางนี้ไม่ได้ใช้เเล้ว
+            $table->decimal('criteria_2', 10, 4)->nullable(); // Criteria_1 + Criteria1_1 (เพิ่มใหม่) ตารางนี้ไม่ได้ใช้เเล้ว
             $table->string('reference_doc')->nullable();   // Reference (เพิ่มใหม่)
 
             // --- Status & Price ---

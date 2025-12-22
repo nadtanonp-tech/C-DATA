@@ -64,11 +64,14 @@ class ImportToolTypesSeeder extends Seeder
 
                     // ถ้ามีค่าอย่างใดอย่างหนึ่ง (ที่ไม่ใช่ Null) ให้บันทึก
                     if ($min !== null || $max !== null) {
-                        $specsList[] = [
+                        $specObj = [
                             'label' => $label,
                             'min'   => $min,
                             'max'   => $max,
                         ];
+
+                        // 🔥 Clean ค่า Null ออกจาก Object ย่อย (min/max ที่เป็น null จะหายไป)
+                        $specsList[] = array_filter($specObj, fn($v) => !is_null($v));
                     }
                 };
 
@@ -85,28 +88,39 @@ class ImportToolTypesSeeder extends Seeder
                     $addSpec('Plug', 'BPlug_Min', 'BPlug_Max'); 
                 }
 
+                // 🔥 เพิ่ม Logic ดึงค่า S และ Cs เข้าไปใน Specs (เริ่มจาก A=1, B=2...)
+                $charIndex = array_search($char, $prefixes) + 1; // A->1, B->2
+                $sVal  = $this->cleanText($oldRow->{'S' . $charIndex}  ?? null);
+                $csVal = $this->cleanText($oldRow->{'Cs' . $charIndex} ?? null);
+
+                if (!empty($sVal)) {
+                    $specsList[] = [
+                        'label'   => 'S',
+                        's_std' => $sVal,
+                    ];
+                }
+                if (!empty($csVal)) {
+                    $specsList[] = [
+                        'label'    => 'Cs',
+                        'cs_std' => $csVal,
+                    ];
+                }
+
                 if (!empty($specsList)) {
-                    $dimensionSpecs[] = [
+                    $pointObj = [
                         'point' => $char,
                         'trend' => $trend,
                         'specs' => $specsList,
                     ];
-                }
-            }
 
-            // 2) UI Options (S1-S15, Cs1-Cs15)
-            $uiOptions = [];
-            for ($i = 1; $i <= 15; $i++) {
-                $sVal  = $oldRow->{'S' . $i}  ?? null;
-                $csVal = $oldRow->{'Cs' . $i} ?? null;
-                if ($sVal || $csVal) {
-                    $uiOptions[] = [
-                        'index' => $i,
-                        's'     => $this->cleanText($sVal),
-                        'cs'    => $this->cleanText($csVal),
-                    ];
+                    // 🔥 Clean ค่า Null ออกจาก Object (เช่น trend: null ก็เอาออกเลย)
+                    $pointObj = array_filter($pointObj, fn($v) => !is_null($v));
+
+                    $dimensionSpecs[] = $pointObj;
                 }
             }
+            
+            // (ลบ Loop UI Options เดิมออก เพราะย้ายไปรวมใน dimension_specs แล้ว)
 
             // 3) Criteria Unit Options (Range1-15, Criteria1-15, Criteria1-1..15-1, Unit1-15)
             $criteriaUnitOptions = [];
@@ -149,12 +163,82 @@ class ImportToolTypesSeeder extends Seeder
                     'cal_flag'        => $this->cleanText($oldRow->CAL ?? null),
                     'input_data'      => $this->cleanText($oldRow->InputData ?? null),
                     'dimension_specs' => json_encode($dimensionSpecs, JSON_UNESCAPED_UNICODE),
-                    'ui_options'      => json_encode($uiOptions, JSON_UNESCAPED_UNICODE),
                     'criteria_unit'   => json_encode($criteriaUnitOptions, JSON_UNESCAPED_UNICODE),
                     'created_at'      => now(),
                     'updated_at'      => now(),
                 ]
             );
         }
+        // ---------------------------------------------------------------------
+        // 4) Backfill Criteria Logic (DataRecord -> tool_types)
+        // ---------------------------------------------------------------------
+        // "ถ้ามีข้อมูล JSON ให้ลงข้อมูลนี้ทับเลย" -> ไม่ต้องกั้น whereNull
+        // "ยกเว้นข้อมูลที่ เป็น 0 และ-0 หรือค่า Null" -> เช็คค่าก่อน
+        
+        $targetToolTypes = \App\Models\ToolType::all(); 
+        $total = $targetToolTypes->count();
+        $this->command->info("Found {$total} ToolTypes to check...");
+
+        $processed = 0;
+        $updated = 0;
+
+        foreach ($targetToolTypes as $toolType) {
+            $processed++;
+            if ($processed % 10 === 0) {
+                $this->command->info("Checking... {$processed}/{$total}");
+            }
+
+            $dataRecord = DB::table('DataRecord')
+                ->where('Name', $toolType->code_type)
+                ->first();
+
+            if ($dataRecord) {
+                // Condition: Check if Type is 'Pressure Gauge'
+                $recordType = trim($dataRecord->Type ?? '');
+                
+                // ใช้การเช็คแบบ Loose หน่อยเผื่อมีเว้นวรรค หรือ Case sensitive
+                if (stripos($recordType, 'Pressure Gauge') !== false) {
+                    
+                    $c1 = $this->cleanText($dataRecord->Criteria_1 ?? null);
+                    $c2 = $this->cleanText($dataRecord->Criteria1_1 ?? null);
+
+                    // Logic เดิม: Merge into Index 1
+                    $existingData = $toolType->criteria_unit;
+                    if (!is_array($existingData)) {
+                        $existingData = [];
+                    }
+
+                    $foundIndex1 = false;
+                    foreach ($existingData as &$item) {
+                        if (isset($item['index']) && $item['index'] == 1) {
+                            $item['criteria_1'] = $c1; // ใส่เลย ไม่ต้องเช็ค 0
+                            $item['criteria_2'] = $c2;
+                            if (empty($item['unit'])) $item['unit'] = '%F.S'; 
+                            $foundIndex1 = true;
+                            break;
+                        }
+                    }
+                    unset($item);
+
+                    if (!$foundIndex1) {
+                        $existingData[] = [
+                            'index'       => 1,
+                            'range'       => null, 
+                            'criteria_1'  => $c1,
+                            'criteria_2'  => $c2,
+                            'unit'        => '%F.S',  
+                        ];
+                    }
+
+                    $toolType->update([
+                        'criteria_unit' => $existingData, 
+                    ]);
+
+                    $updated++;
+                    $this->command->info("✅ Updated (Pressure Gauge): {$toolType->code_type}");
+                }
+            }
+        }
+        $this->command->info("🎉 Finished! Checked: {$processed}, Updated: {$updated}");
     }
 }

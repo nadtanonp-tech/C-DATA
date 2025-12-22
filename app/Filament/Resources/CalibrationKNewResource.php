@@ -30,15 +30,15 @@ class CalibrationKNewResource extends Resource
 {
     protected static ?string $model = CalibrationRecord::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
     protected static ?string $navigationLabel = 'K-Gauge';
-    protected static ?string $navigationGroup = 'บันทึกผลสอบเทียบ (Calibration)'; 
+    protected static ?string $navigationGroup = 'Gauge Calibration';
     protected static ?int $navigationSort = 2;
 
     public static function getEloquentQuery(): Builder
     {
         // 🔥 กรองเฉพาะ K-Gauge โดยใช้ code_no pattern แทน toolType
         return parent::getEloquentQuery()
+            ->with(['instrument.toolType']) // 🔥 แก้ N+1 Query
             ->whereHas('instrument', function ($query) {
                 $query->where('code_no', 'LIKE', '8-01-%');
             });
@@ -101,14 +101,26 @@ class CalibrationKNewResource extends Resource
                                         
                                                 $readingItem = [
                                                     'point' => $point,
-                                                    'trend' => $spec['trend'] ?? null,
+                                                    'trend' => $spec['trend'] ?? 'Smaller',
                                                 ];
                                         
                                                 if (isset($spec['specs']) && is_array($spec['specs']) && count($spec['specs']) > 0) {
                                                     $mainSpec = $spec['specs'][0];
-                                                    $readingItem['min_spec'] = $mainSpec['min'] ?? null;
-                                                    $readingItem['max_spec'] = $mainSpec['max'] ?? null;
                                                     $readingItem['std_label'] = $mainSpec['label'] ?? 'STD';
+                                                    
+                                                    if (($mainSpec['label'] ?? '') === 'วัดเกลียว') {
+                                                        $readingItem['min_spec'] = $mainSpec['standard_value'] ?? null;
+                                                        $readingItem['max_spec'] = null;
+                                                    // 🔥 ตั้งค่า Default ให้ Link กับหน้าจอ
+                                                        $readingItem['Judgement'] = 'Pass';
+                                                        
+                                                    } else {
+                                                        $valMin = $mainSpec['min'] ?? null;
+                                                        $valMax = $mainSpec['max'] ?? null;
+                                                        // Format Scientific Notation
+                                                        $readingItem['min_spec'] = $valMin !== null ? rtrim(rtrim(number_format((float)$valMin, 8, '.', ''), '0'), '.') : null;
+                                                        $readingItem['max_spec'] = $valMax !== null ? rtrim(rtrim(number_format((float)$valMax, 8, '.', ''), '0'), '.') : null;
+                                                    }
                                                 }
                                         
                                                 if (isset($spec['specs'])) {
@@ -231,12 +243,15 @@ class CalibrationKNewResource extends Resource
                                             'Bigger' => 'ใหญ่ขึ้น (Bigger)',
                                             'None' => 'ไม่มี (General)',
                                         ])
+                                        // ->native(false)
                                         ->disabled()
+                                        ->dehydrated(),
+                                    Forms\Components\Hidden::make('std_label')
                                         ->dehydrated(),
 
                                     TextInput::make('min_spec')
-                                        ->label('Min')
-                                        ->numeric()
+                                        ->label(fn (Get $get) => ($get('std_label') === 'วัดเกลียว') ? 'Standard' : 'Min')
+                                        ->columnSpan(fn (Get $get) => ($get('std_label') === 'วัดเกลียว') ? 2 : 1)
                                         ->disabled()
                                         ->dehydrated(),
                                     
@@ -244,10 +259,12 @@ class CalibrationKNewResource extends Resource
                                         ->label('Max')
                                         ->numeric()
                                         ->disabled()
+                                        ->hidden(fn (Get $get) => ($get('std_label') === 'วัดเกลียว'))
                                         ->dehydrated(),
                                         
                                     TextInput::make('reading')
                                         ->label('ค่าที่วัดได้')
+                                        ->columnSpan(fn (Get $get) => ($get('std_label') === 'วัดเกลียว') ? 2 : 1)
                                         ->live(onBlur: true)
                                         ->afterStateUpdated(function ($state, Set $set, Get $get) {
                                             // ตรวจสอบว่ากรอกครบทุก Point หรือยัง
@@ -270,6 +287,7 @@ class CalibrationKNewResource extends Resource
                                     TextInput::make('error')
                                         ->label('Error')
                                         ->disabled()
+                                        ->hidden(fn (Get $get) => ($get('std_label') === 'วัดเกลียว'))
                                         ->dehydrated()
                                         ->extraAttributes(fn ($state) => [
                                             'style' => 'font-family: monospace; font-weight: 600; text-align: center;'
@@ -278,7 +296,32 @@ class CalibrationKNewResource extends Resource
                                     TextInput::make('Judgement')
                                         ->label('Judgement')
                                         ->disabled()
+                                        
+                                        ->hidden(fn (Get $get) => ($get('std_label') === 'วัดเกลียว'))
                                         ->dehydrated()
+                                        ->extraAttributes(fn ($state) => [
+                                            'style' => match($state) {
+                                                'Pass' => 'background-color: #dcfce7 !important; color: #166534 !important; font-weight: bold !important; text-align: center;',
+                                                'Reject' => 'background-color: #fee2e2 !important; color: #991b1b !important; font-weight: bold !important; text-align: center;',
+                                                default => 'text-align: center;'
+                                            }
+                                        ]),
+
+                                    Select::make('Judgement_manual')
+                                        ->label('Judgement')
+                                        
+                                        ->options([
+                                            'Pass' => 'Pass',
+                                            'Reject' => 'Reject',
+                                        ])
+                                        ->default('Pass')
+                                        ->selectablePlaceholder(false)
+                                        ->hidden(fn (Get $get) => ($get('std_label') !== 'วัดเกลียว'))
+                                        ->live()
+
+                                        ->afterStateHydrated(fn ($component, Get $get) => $component->state($get('Judgement') ?: 'Pass'))
+                                        ->afterStateUpdated(fn (Set $set, $state) => $set('Judgement', $state))
+                                        ->dehydrated(false)
                                         ->extraAttributes(fn ($state) => [
                                             'style' => match($state) {
                                                 'Pass' => 'background-color: #dcfce7 !important; color: #166534 !important; font-weight: bold !important; text-align: center;',
@@ -290,7 +333,7 @@ class CalibrationKNewResource extends Resource
                                     Select::make('grade')
                                         ->label('Grade Result')
                                         ->columnSpan(2)
-                                        ->disabled()
+                                        ->disabled(fn (Get $get) => ($get('std_label') ?? '') !== 'วัดเกลียว')
                                         ->options([
                                             'A' => 'Grade A (Pass)',
                                             'B' => 'Grade B (Warning)',
@@ -374,6 +417,11 @@ class CalibrationKNewResource extends Resource
         foreach ($readings as $index => $reading) {
             $readingValue = (float) ($reading['reading'] ?? 0);
             
+             // 🔥 ถ้าเป็น 'วัดเกลียว' ให้ข้ามการคำนวณ (ใช้ค่าที่ User เลือกเอง)
+             if (($reading['std_label'] ?? '') === 'วัดเกลียว') {
+                continue;
+            }
+
             // ข้าม Point ที่ยังไม่ได้กรอกค่า
             if ($readingValue == 0) continue;
             
@@ -440,10 +488,10 @@ class CalibrationKNewResource extends Resource
         $calDate = $get('../../../cal_date');
         if ($calDate) {
             $nextDate = match($level) {
-                'A' => \Carbon\Carbon::parse($calDate)->addMonths($instrument->cal_freq_months ?? 12),
-                'B' => \Carbon\Carbon::parse($calDate)->addMonth(),
+                'A' => \Carbon\Carbon::parse($calDate)->addMonths($instrument->cal_freq_months ?? 12)->endOfMonth(),
+                'B' => \Carbon\Carbon::parse($calDate)->addMonth()->endOfMonth(),
                 'C' => null,
-                default => \Carbon\Carbon::parse($calDate)->addMonths($instrument->cal_freq_months ?? 12),
+                default => \Carbon\Carbon::parse($calDate)->addMonths($instrument->cal_freq_months ?? 12)->endOfMonth(),
             };
             
             if ($nextDate) {
@@ -469,6 +517,11 @@ class CalibrationKNewResource extends Resource
         foreach ($readings as $index => $reading) {
             $readingValue = (float) ($reading['reading'] ?? 0);
             
+             // 🔥 ถ้าเป็น 'วัดเกลียว' ให้ข้ามการคำนวณ (ใช้ค่าที่ User เลือกเอง)
+             if (($reading['std_label'] ?? '') === 'วัดเกลียว') {
+                continue;
+            }
+
             // ข้าม Point ที่ยังไม่ได้กรอกค่า
             if ($readingValue == 0) continue;
             
@@ -560,10 +613,10 @@ class CalibrationKNewResource extends Resource
         if (!$instrument) return;
         
         $nextDate = match($level) {
-            'A' => \Carbon\Carbon::parse($calDate)->addMonths($instrument->cal_freq_months ?? 12),
-            'B' => \Carbon\Carbon::parse($calDate)->addMonth(),
+            'A' => \Carbon\Carbon::parse($calDate)->addMonths($instrument->cal_freq_months ?? 12)->endOfMonth(), // 🔥 ปรับเป็นสิ้นเดือน
+            'B' => \Carbon\Carbon::parse($calDate)->addMonth()->endOfMonth(), // 🔥 ปรับเป็นสิ้นเดือน
             'C' => null,
-            default => \Carbon\Carbon::parse($calDate)->addMonths($instrument->cal_freq_months ?? 12),
+            default => \Carbon\Carbon::parse($calDate)->addMonths($instrument->cal_freq_months ?? 12)->endOfMonth(), // 🔥 ปรับเป็นสิ้นเดือน
         };
         
         if ($nextDate) {

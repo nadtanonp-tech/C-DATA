@@ -68,30 +68,9 @@ class ListToolTypes extends ListRecords
             ->button(),
 
             // กลุ่มใหม่สำหรับ Instruments
-            Actions\ActionGroup::make([
-                Actions\CreateAction::make('createVernier')
-                    ->label('Vernier Caliper')
-                    ->color('gray')
-                    ->url(fn (): string => ToolTypeResource::getUrl('create', ['type' => 'vernier'])),
-
-                Actions\CreateAction::make('createMicrometer')
-                    ->label('Micrometer')
-                    ->color('gray')
-                    ->url(fn (): string => ToolTypeResource::getUrl('create', ['type' => 'micrometer'])),
-
-                Actions\CreateAction::make('createHeightGauge')
-                    ->label('Height Gauge')
-                    ->color('gray')
-                    ->url(fn (): string => ToolTypeResource::getUrl('create', ['type' => 'height_gauge'])),
-
-                Actions\CreateAction::make('createDialGauge')
-                    ->label('Dial Gauge')
-                    ->color('gray')
-                    ->url(fn (): string => ToolTypeResource::getUrl('create', ['type' => 'dial_gauge'])),
-            ])
-            ->label('Create New Instruments Type')
-            ->color('primary')
-            ->button(),
+            Actions\CreateAction::make('createInstrumentType')
+                ->label('Create New Instruments Type') // ปุ่มเดียวรวมทุกอย่าง
+                ->url(fn (): string => ToolTypeResource::getUrl('create', ['is_new_instruments_type' => 1])),
         ];
     }
 }

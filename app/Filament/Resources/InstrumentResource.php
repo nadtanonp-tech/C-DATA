@@ -35,6 +35,12 @@ class InstrumentResource extends Resource
     protected static ?string $navigationGroup = 'Instrument Data';
     protected static ?string $modelLabel = 'Instrument';
 
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->with(['toolType']);
+    }
+
     public static function form(Form $form): Form
     {
         return $form
@@ -57,9 +63,9 @@ class InstrumentResource extends Resource
                                 ->relationship('toolType', 'name')
                                 ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->code_type} - {$record->name} ( {$record->size} )")
                                 ->searchable(['code_type', 'name'])
-                                ->preload()
+                                ->searchable(['code_type', 'name'])
                                 ->required()
-                                ->columnSpan(3)
+                                ->columnSpan(4)
                                 ->placeholder('เลือกประเภทเครื่องมือ')
                                 ->live() // เก็บไว้เพื่อ preview
                                 ->afterStateUpdated(function (Set $set, ?string $state) {
@@ -74,18 +80,22 @@ class InstrumentResource extends Resource
                                     }
                                 }),
                             
-                            TextInput::make('serial_no')
-                                ->label('Serial No.'),
+                            
                             ]),
 
-                        Grid::make(4)->schema([
+                        Grid::make(6)->schema([
                             Select::make('equip_type')
                                 ->label('ประเภทการใช้งาน')
                                 ->options([
                                     'Working' => 'Working (ใช้งานทั่วไป)',
                                     'Master' => 'Master (เครื่องมือมาตรฐาน)',
                                 ])
+                                ->native(false)
+                                ->columnSpan(2)
                                 ->default('Working'),
+
+                            TextInput::make('serial_no')
+                                ->label('Serial No.'),
 
                             TextInput::make('brand')
                                 ->label('ยี่ห้อ (Brand)'),
@@ -96,8 +106,6 @@ class InstrumentResource extends Resource
                             TextInput::make('asset_no')
                                 ->label('Asset No. (บัญชี)'),
                             
-                            
-
                         ]),
 
                         FileUpload::make('instrument_image')
@@ -125,7 +133,7 @@ class InstrumentResource extends Resource
                                 ->label('แผนก (Department)')
                                 ->relationship('department', 'name') // ดึงชื่อแผนกมาโชว์
                                 ->searchable()
-                                ->preload()
+                                ->searchable()
                                 ->placeholder('เลือกแผนก')
                                 ->createOptionForm ([ // ✨ ปุ่มวิเศษ: กดบวกเพิ่มแผนกใหม่ได้ทันที
                                     TextInput::make('name')
@@ -146,7 +154,7 @@ class InstrumentResource extends Resource
                 // --- ส่วนที่ 3: การสอบเทียบ (Calibration Info) ---
                 Section::make('ข้อมูลการสอบเทียบ (Calibration Details)')
                     ->schema([
-                        Grid::make(4)->schema([
+                        Grid::make(6)->schema([
                             Select::make('cal_place')
                                 ->label('สถานที่สอบเทียบ')
                                 ->options([
@@ -154,6 +162,8 @@ class InstrumentResource extends Resource
                                     'External' => 'External (ภายนอก)',
                                 ])
                                 ->default('Internal')
+                                ->columnSpan(2)
+                                ->native(false)
                                 ->required(),
 
                             TextInput::make('cal_freq_months')
@@ -171,53 +181,53 @@ class InstrumentResource extends Resource
 
                             TextInput::make('range_spec')
                                 ->label('การใช้งาน (Range)'),
+                            
+                            TextInput::make('reference_doc')
+                                ->label('Reference Pressure'),
                         ]),
 
-                        Grid::make(4)->schema([
+                        Grid::make(7)->schema([
                             
                             TextInput::make('percent_adj')
                                 ->label('เกณฑ์ในการตัดเกรด (Percent Adjust)')
                                 ->numeric()
+                                ->columnSpan(2)
                                 ->default(10)
                                 ->suffix('%'),
 
                             TextInput::make('criteria_1')
                                 ->label('เกณฑ์ในการยอมรับค่าบวก (Criteria 1)')
                                 ->numeric()
+                                ->columnSpan(2)
                                 ->minValue(0)
                                 ->suffix(fn (Forms\Get $get) => $get('criteria_unit') ?? '%F.S')
+                                ->helperText(new \Illuminate\Support\HtmlString('<span style="color: red;">หมายเหตุ: Criteria ใช้คํานวณ Gauge เท่านั้น</span>'))
                                 ->default('0.00'),
 
                             TextInput::make('criteria_2')
                                 ->label('เกณฑ์ในการยอมรับค่าลบ (Criteria 2)')
                                 ->numeric()
+                                ->columnSpan(2)
                                 ->maxValue(0) // เปลี่ยนเป็น 0 (เพราะเป็นค่าลบ) หรือ -9999 แล้วแต่ logic
                                 ->suffix(fn (Forms\Get $get) => $get('criteria_unit') ?? '%F.S')
                                 ->default('-0.00'),
 
                             // เพิ่มตัวเลือกหน่วย (Unit)
-                            Select::make('criteria_unit')
+                            TextInput::make('criteria_unit')
                                 ->label('หน่วย (Unit)')
-                                ->options([
-                                    '%F.S' => '%F.S',
-                                    'mm.' => 'mm.',
-            
-                                ])
                                 ->default('%F.S')
                                 ->live() // ให้ทำงานทันทีเพื่อเปลี่ยน suffix
-                                ->required(),
-
-                            TextInput::make('reference_doc')
-                            ->label('Reference Pressure'),
+                                ->required()            
                         ]),
                     ]),
 
                 // --- ส่วนที่ 4: สถานะและราคา (Status & Price) ---
                 Section::make('สถานะและอื่นๆ')
                     ->schema([
-                        Grid::make(3)->schema([
+                        Grid::make(5)->schema([
                             Select::make('status')
-                                ->label('สถานะปัจจุบัน')
+                                ->label('สถานะปัจจุบัน (Status)')
+                                
                                 ->options([
                                     'ใช้งาน' => 'Active',
                                     'Spare' => 'Spare',
@@ -226,6 +236,7 @@ class InstrumentResource extends Resource
                                     'สูญหาย' => 'Lost',
                                 ])
                                 ->default('Spare')
+                                ->native(false)
                                 ->required(),
 
                             DatePicker::make('receive_date')
@@ -234,14 +245,14 @@ class InstrumentResource extends Resource
                                 ->native(false), // ใช้ปฏิทินสวยๆ   
 
                             TextInput::make('price')
-                                ->label('ราคาซื้อ (บาท)')
-                                ->numeric()
-                                ->prefix('฿'),
-
+                                ->label('Price (ราคานำเข้า)') // เอา (บาท) ออกจาก Label เพราะมี Suffix แล้ว
+                                ->default(0) // ยังคง Validation ว่าต้องเป็นตัวเลข
+                                ->suffix('บาท'), // ย้าย ฿ มาไว้ข้างหลังเป็น "บาท"
+                            
+                            Textarea::make('remark')
+                                ->columnSpan(2)
+                                ->label('หมายเหตุ (Remark)')
                         ]),
-                        Textarea::make('remark')
-                            ->label('หมายเหตุ (Remark)')
-                            ->columnSpanFull(), // กว้างเต็มบรรทัด
                     ]),
             ]);
     }
@@ -272,7 +283,7 @@ class InstrumentResource extends Resource
 
                 // 4. รหัสประเภทเครื่องมือ
                 TextColumn::make('toolType.code_type')
-                    ->label('Code Type')
+                    ->label('ID Code Type')
                     ->searchable()
                     ->limit(30) // ตัดคำถ้ายาวเกิน
                     ->tooltip(fn ($state) => $state), // เอาเมาส์ชี้ดูชื่อเต็ม

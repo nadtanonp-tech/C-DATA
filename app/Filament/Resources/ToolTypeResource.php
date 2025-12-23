@@ -83,7 +83,8 @@ class ToolTypeResource extends Resource
                                         }
                                     }
                                     $component->state($value);
-                                }),
+                                })
+                                ->hidden(fn ($livewire) => data_get($livewire->data ?? [], 'is_kgauge') || data_get($livewire->data ?? [], 'is_snap_gauge') || data_get($livewire->data ?? [], 'is_plug_gauge') || data_get($livewire->data ?? [], 'is_thread_plug_gauge') || data_get($livewire->data ?? [], 'is_thread_ring_gauge') || data_get($livewire->data ?? [], 'is_serration_plug_gauge') || data_get($livewire->data ?? [], 'is_serration_ring_gauge') || data_get($livewire->data ?? [], 'is_thread_plug_gauge_for_checking_fit_wear') || data_get($livewire->data ?? [], 'is_serration_plug_gauge_for_checking_fit_wear')),
                             
                             TextInput::make('criteria_1')
                                 ->label('เกณฑ์ในการยอมรับค่าบวก (Criteria 1)')

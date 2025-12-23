@@ -2,8 +2,8 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\CalibrationKNewResource\Pages;
-use App\Filament\Resources\CalibrationKNewResource\RelationManagers;
+use App\Filament\Resources\CalibrationPlugGaugeResource\Pages;
+use App\Filament\Resources\CalibrationPlugGaugeResource\RelationManagers;
 use App\Models\CalibrationRecord;
 use App\Models\Instrument;
 use App\Models\Master;
@@ -26,21 +26,21 @@ use Filament\Tables\Actions;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
-class CalibrationKNewResource extends Resource
+class CalibrationPlugGaugeResource extends Resource
 {
     protected static ?string $model = CalibrationRecord::class;
 
-    protected static ?string $navigationLabel = 'K-Gauge';
+    protected static ?string $navigationLabel = 'Plug Gauge';
     protected static ?string $navigationGroup = 'Gauge Calibration';
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 4;
 
     public static function getEloquentQuery(): Builder
     {
-        // 🔥 กรองเฉพาะ K-Gauge โดยใช้ code_no pattern แทน toolType
+        // 🔥 กรองเฉพาะ Plug Gauge โดยใช้ code_no pattern
         return parent::getEloquentQuery()
             ->with(['instrument.toolType']) // 🔥 แก้ N+1 Query
             ->whereHas('instrument', function ($query) {
-                $query->where('code_no', 'LIKE', '8-01-%');
+                $query->where('code_no', 'LIKE', '8-03-%');
             });
     } 
 
@@ -60,9 +60,9 @@ class CalibrationKNewResource extends Resource
                                     ->columnSpan(2)
                                     ->reactive()
                                     ->getSearchResultsUsing(function (string $search) {
-                                        // 🔥 ค้นหาเฉพาะ K-Gauge ที่มี code_no ขึ้นต้นด้วย "8-01-"
+                                        // 🔥 ค้นหาเฉพาะ Plug Gauge ที่มี code_no ขึ้นต้นด้วย "8-03-"
                                         return \App\Models\Instrument::query()
-                                            ->where('code_no', 'LIKE', '8-01-%') // กรองเฉพาะ K-Gauge
+                                            ->where('code_no', 'LIKE', '8-03-%') // กรองเฉพาะ Plug Gauge
                                             ->where(function($q) use ($search) {
                                                 $q->where('code_no', 'like', "%{$search}%")
                                                   ->orWhere('name', 'like', "%{$search}%");
@@ -95,7 +95,7 @@ class CalibrationKNewResource extends Resource
                                             $dimensionSpecs = $instrument->toolType->dimension_specs;
                                             $readings = [];
                                     
-                                            foreach ($dimensionSpecs as $spec) {
+                                            foreach ($dimensionSpecs as $pointIndex => $spec) {
                                                 $point = $spec['point'] ?? null;
                                                 if (!$point) continue;
                                         
@@ -126,6 +126,16 @@ class CalibrationKNewResource extends Resource
                                                 if (isset($spec['specs'])) {
                                                     $readingItem['all_specs'] = $spec['specs'];
                                                 }
+                                                
+                                                // 🔥 กำหนดจำนวน default measurements ตามลำดับ Point
+                                                // Point แรก (index 0) = 3 ช่อง, Point ที่สอง (index 1) = 2 ช่อง, ที่เหลือ = 1 ช่อง
+                                                $measurementCount = match($pointIndex) {
+                                                    0 => 3,  // Point 1 = 3 ช่อง
+                                                    1 => 2,  // Point 2 = 2 ช่อง
+                                                    default => 1,
+                                                };
+                                                
+                                                $readingItem['measurements'] = array_fill(0, $measurementCount, ['value' => null]);
                                         
                                                 $readings[] = $readingItem;
                                             }
@@ -228,118 +238,135 @@ class CalibrationKNewResource extends Resource
                     ]),
 
                 Section::make('ผลการวัด (Measurement Results)')
-                    ->description('กรอกค่าตามจุดตรวจสอบ (A, B, C...)')
+                    ->description('กรอกค่าตามจุดตรวจสอบ - สามารถเพิ่มหลายค่าต่อจุด และใช้ค่าเฉลี่ยในการคำนวณ')
                     ->schema([
                         Repeater::make('calibration_data.readings')
                             ->label('รายการจุดตรวจสอบ')
-                            ->itemLabel(fn (array $state): ?string => 'Point ' . ($state['point'] ?? '?'))
+                            ->itemLabel(fn (array $state): ?string => 'Point ' . ($state['point'] ?? '?') . ' | Avg: ' . ($state['reading'] . ' mm.' ?? '-'))
                             ->schema([
-                                Grid::make(9)->schema([
-                                    Select::make('trend')
-                                        ->label('Trend')
-                                        ->columnSpan(2)
-                                        ->options([
-                                            'Smaller' => 'เล็กลง (Smaller)',
-                                            'Bigger' => 'ใหญ่ขึ้น (Bigger)',
-                                            'None' => 'ไม่มี (General)',
+                                Grid::make(12)->schema([
+                                    // 🔥 Hidden fields
+                                    Forms\Components\Hidden::make('point')->dehydrated(),
+                                    Forms\Components\Hidden::make('std_label')->dehydrated(),
+                                    Forms\Components\Hidden::make('trend')->dehydrated(),
+                                    Forms\Components\Hidden::make('min_spec')->dehydrated(),
+                                    Forms\Components\Hidden::make('max_spec')->dehydrated(),
+                                    Forms\Components\Hidden::make('all_specs')->dehydrated(),
+
+                                    // 🔥 Display Info Row
+                                    Placeholder::make('point_info')
+                                        ->label('')
+                                        ->columnSpan(12)
+                                        ->content(fn (Get $get) => view('filament.components.point-info', [
+                                            'point' => $get('point'),
+                                            'trend' => $get('trend'),
+                                            'minSpec' => $get('min_spec') . ' mm.',
+                                            'maxSpec' => $get('max_spec') . ' mm.',
+                                            'stdLabel' => $get('std_label'),
+                                        ])),
+
+                                    // 🔥 Nested Repeater สำหรับหลายค่า Measurements
+                                    Repeater::make('measurements')
+                                        ->hiddenLabel()
+                                        ->columnSpan(6)
+                                        ->schema([
+                                            TextInput::make('value')
+                                                ->label('ค่าวัด')
+                                                ->numeric()
+                                                ->live(debounce: 500)
+                                                ->afterStateUpdated(function ($state, Set $set, Get $get) {
+                                                    // คำนวณค่าเฉลี่ยจาก measurements ทั้งหมด
+                                                    self::calculateAverageReading($get, $set);
+                                                })
+                                                ->extraAttributes([
+                                                    'style' => 'font-family: monospace; text-align: center;'
+                                                ]),
                                         ])
-                                        // ->native(false)
-                                        ->disabled()
-                                        ->dehydrated(),
-                                    Forms\Components\Hidden::make('std_label')
-                                        ->dehydrated(),
+                                        ->addActionLabel('+ เพิ่มค่าวัด')
+                                        ->reorderable(false)
+                                        ->cloneable(false)
+                                        ->defaultItems(1)
+                                        ->minItems(1)
+                                        ->columns(1)
+                                        ->grid(3)
+                                        ->itemLabel(fn (array $state): ?string => $state['value'] ? 'ค่า: ' . $state['value'] . ' mm.' : 'กรอกค่า'),
 
-                                    TextInput::make('min_spec')
-                                        ->label(fn (Get $get) => ($get('std_label') === 'วัดเกลียว') ? 'Standard' : 'Min')
-                                        ->columnSpan(fn (Get $get) => ($get('std_label') === 'วัดเกลียว') ? 2 : 1)
-                                        ->disabled()
-                                        ->dehydrated(),
-                                    
-                                    TextInput::make('max_spec')
-                                        ->label('Max')
-                                        ->numeric()
-                                        ->disabled()
-                                        ->hidden(fn (Get $get) => ($get('std_label') === 'วัดเกลียว'))
-                                        ->dehydrated(),
-                                        
-                                    TextInput::make('reading')
-                                        ->label('ค่าที่วัดได้')
-                                        ->columnSpan(fn (Get $get) => ($get('std_label') === 'วัดเกลียว') ? 2 : 1)
-                                        ->live(onBlur: true)
-                                        ->afterStateUpdated(function ($state, Set $set, Get $get) {
-                                            // ตรวจสอบว่ากรอกครบทุก Point หรือยัง
-                                            $readings = $get('../../../calibration_data.readings') ?? [];
-                                            $allFilled = true;
-                                            
-                                            foreach ($readings as $reading) {
-                                                if (empty($reading['reading']) || $reading['reading'] == 0) {
-                                                    $allFilled = false;
-                                                    break;
-                                                }
-                                            }
-                                            
-                                            // ถ้ากรอกครบทุก Point → คำนวณทั้งหมด
-                                            if ($allFilled) {
-                                                self::calculateAllPointsAuto($get, $set);
-                                            }
-                                        }),
-                                    
-                                    TextInput::make('error')
-                                        ->label('Error')
-                                        ->disabled()
-                                        ->hidden(fn (Get $get) => ($get('std_label') === 'วัดเกลียว'))
-                                        ->dehydrated()
-                                        ->extraAttributes(fn ($state) => [
-                                            'style' => 'font-family: monospace; font-weight: 600; text-align: center;'
+                                    // 🔥 Result Section
+                                    Section::make('ผลลัพธ์')
+                                        ->columnSpan(6)
+                                        ->compact()
+                                        ->schema([
+                                            Grid::make(4)->schema([
+                                                TextInput::make('reading')
+                                                    ->label('ค่าเฉลี่ย (Avg)')
+                                                    ->disabled()
+                                                    ->dehydrated()
+                                                    ->extraAttributes([
+                                                        'style' => 'font-family: monospace; font-weight: 700; text-align: center; background-color: #e0f2fe; color: #0369a1; font-size: 1.1rem;'
+                                                    ]),
+                                                
+                                                TextInput::make('error')
+                                                    ->label('Error')
+                                                    ->disabled()
+                                                    ->hidden(fn (Get $get) => ($get('std_label') === 'วัดเกลียว'))
+                                                    ->dehydrated()
+                                                    ->extraAttributes(fn ($state) => [
+                                                        'style' => 'font-family: monospace; font-weight: 600; text-align: center;'
+                                                    ]),
+                                                
+                                                TextInput::make('Judgement')
+                                                    ->label('Judgement')
+                                                    ->disabled()
+                                                    ->hidden(fn (Get $get) => ($get('std_label') === 'วัดเกลียว'))
+                                                    ->dehydrated()
+                                                    ->extraAttributes(fn ($state) => [
+                                                        'style' => match($state) {
+                                                            'Pass' => 'background-color: #dcfce7 !important; color: #166534 !important; font-weight: bold !important; text-align: center;',
+                                                            'Reject' => 'background-color: #fee2e2 !important; color: #991b1b !important; font-weight: bold !important; text-align: center;',
+                                                            default => 'text-align: center;'
+                                                        }
+                                                    ]),
+
+                                                Select::make('Judgement_manual')
+                                                    ->label('Judgement')
+                                                    ->options([
+                                                        'Pass' => 'Pass',
+                                                        'Reject' => 'Reject',
+                                                    ])
+                                                    ->default('Pass')
+                                                    ->selectablePlaceholder(false)
+                                                    ->hidden(fn (Get $get) => ($get('std_label') !== 'วัดเกลียว'))
+                                                    ->live()
+                                                    ->afterStateHydrated(fn ($component, Get $get) => $component->state($get('Judgement') ?: 'Pass'))
+                                                    ->afterStateUpdated(fn (Set $set, $state) => $set('Judgement', $state))
+                                                    ->dehydrated(false)
+                                                    ->extraAttributes(fn ($state) => [
+                                                        'style' => match($state) {
+                                                            'Pass' => 'background-color: #dcfce7 !important; color: #166534 !important; font-weight: bold !important; text-align: center;',
+                                                            'Reject' => 'background-color: #fee2e2 !important; color: #991b1b !important; font-weight: bold !important; text-align: center;',
+                                                            default => 'text-align: center;'
+                                                        }
+                                                    ]),
+
+                                                Select::make('grade')
+                                                    ->label('Grade')
+                                                    ->disabled(fn (Get $get) => ($get('std_label') ?? '') !== 'วัดเกลียว')
+                                                    ->options([
+                                                        'A' => 'Grade A',
+                                                        'B' => 'Grade B',
+                                                        'C' => 'Grade C',
+                                                    ])
+                                                    ->dehydrated()
+                                                    ->extraAttributes(fn ($state) => [
+                                                        'style' => match($state) {
+                                                            'A' => 'background-color: #dcfce7 !important; color: #166534 !important; font-weight: bold !important;',
+                                                            'B' => 'background-color: #fef3c7 !important; color: #92400e !important; font-weight: bold !important;',
+                                                            'C' => 'background-color: #fee2e2 !important; color: #991b1b !important; font-weight: bold !important;',
+                                                            default => ''
+                                                        }
+                                                    ]),
+                                            ]),
                                         ]),
-                                    
-                                    TextInput::make('Judgement')
-                                        ->label('Judgement')
-                                        ->disabled()
-                                        
-                                        ->hidden(fn (Get $get) => ($get('std_label') === 'วัดเกลียว'))
-                                        ->dehydrated()
-                                        ->extraAttributes(fn ($state) => [
-                                            'style' => match($state) {
-                                                'Pass' => 'background-color: #dcfce7 !important; color: #166534 !important; font-weight: bold !important; text-align: center;',
-                                                'Reject' => 'background-color: #fee2e2 !important; color: #991b1b !important; font-weight: bold !important; text-align: center;',
-                                                default => 'text-align: center;'
-                                            }
-                                        ]),
-
-                                    Select::make('Judgement_manual')
-                                        ->label('Judgement')
-                                        
-                                        ->options([
-                                            'Pass' => 'Pass',
-                                            'Reject' => 'Reject',
-                                        ])
-                                        ->default('Pass')
-                                        ->selectablePlaceholder(false)
-                                        ->hidden(fn (Get $get) => ($get('std_label') !== 'วัดเกลียว'))
-                                        ->live()
-
-                                        ->afterStateHydrated(fn ($component, Get $get) => $component->state($get('Judgement') ?: 'Pass'))
-                                        ->afterStateUpdated(fn (Set $set, $state) => $set('Judgement', $state))
-                                        ->dehydrated(false)
-                                        ->extraAttributes(fn ($state) => [
-                                            'style' => match($state) {
-                                                'Pass' => 'background-color: #dcfce7 !important; color: #166534 !important; font-weight: bold !important; text-align: center;',
-                                                'Reject' => 'background-color: #fee2e2 !important; color: #991b1b !important; font-weight: bold !important; text-align: center;',
-                                                default => 'text-align: center;'
-                                            }
-                                        ]),
-
-                                    Select::make('grade')
-                                        ->label('Grade Result')
-                                        ->columnSpan(2)
-                                        ->disabled(fn (Get $get) => ($get('std_label') ?? '') !== 'วัดเกลียว')
-                                        ->options([
-                                            'A' => 'Grade A (Pass)',
-                                            'B' => 'Grade B (Warning)',
-                                            'C' => 'Grade C (Fail)',
-                                        ])
-                                        ->dehydrated(),
                                 ]),
                             ])
                             ->collapsible()
@@ -398,6 +425,179 @@ class CalibrationKNewResource extends Resource
                         ]),
                     ]),
         ]);
+    }
+
+    // 🔥 ฟังก์ชันคำนวณค่าเฉลี่ยจาก measurements
+    protected static function calculateAverageReading(Get $get, Set $set)
+    {
+        // 🔥 ตรวจสอบว่ากรอก value ครบ **ทุกช่อง** ของ **ทุก Point** หรือยัง
+        $readings = $get('../../../../../calibration_data.readings') ?? [];
+        
+        $allValuesFilled = true;
+        foreach ($readings as $reading) {
+            $pointMeasurements = $reading['measurements'] ?? [];
+            
+            // ถ้า point นี้ไม่มี measurements เลย → ยังไม่ครบ
+            if (empty($pointMeasurements)) {
+                $allValuesFilled = false;
+                break;
+            }
+            
+            // ตรวจสอบว่า **ทุก value** ใน point นี้ถูกกรอกแล้วหรือยัง
+            foreach ($pointMeasurements as $m) {
+                if (!isset($m['value']) || $m['value'] === '' || $m['value'] === null) {
+                    $allValuesFilled = false;
+                    break 2; // ออกจากทั้ง 2 loops
+                }
+            }
+        }
+        
+        // 🔥 ถ้ายังกรอกไม่ครบ → ไม่คำนวณอะไรเลย
+        if (!$allValuesFilled) {
+            return;
+        }
+        
+        // 🔥 ถ้ากรอกครบทุกช่องแล้ว → คำนวณทั้งหมด
+        self::calculateAllPointsFromMeasurements($get, $set);
+    }
+    
+    // 🔥 ฟังก์ชันคำนวณทุก Point พร้อมกัน (เมื่อกรอกครบแล้ว)
+    protected static function calculateAllPointsFromMeasurements(Get $get, Set $set)
+    {
+        $readings = $get('../../../../../calibration_data.readings') ?? [];
+        $instrumentId = $get('../../../../../instrument_id');
+        
+        if (!$instrumentId || empty($readings)) return;
+        
+        $instrument = \App\Models\Instrument::find($instrumentId);
+        if (!$instrument) return;
+        
+        $percentAdj = (float) ($instrument->percent_adj ?? 10);
+        
+        // คำนวณแต่ละ Point
+        foreach ($readings as $index => $reading) {
+            $stdLabel = $reading['std_label'] ?? '';
+            
+            // ถ้าเป็น 'วัดเกลียว' ให้ข้ามการคำนวณ
+            if ($stdLabel === 'วัดเกลียว') {
+                continue;
+            }
+            
+            // คำนวณค่าเฉลี่ยจาก measurements
+            $measurements = $reading['measurements'] ?? [];
+            $values = collect($measurements)
+                ->pluck('value')
+                ->filter(fn ($v) => !is_null($v) && $v !== '' && is_numeric($v))
+                ->map(fn ($v) => (float) $v);
+            
+            if ($values->isEmpty()) continue;
+            
+            $readingValue = $values->avg();
+            $minSpec = (float) ($reading['min_spec'] ?? 0);
+            $maxSpec = (float) ($reading['max_spec'] ?? 0);
+            $trend = $reading['trend'] ?? 'Smaller';
+            
+            $range = $maxSpec - $minSpec;
+            $tolerance = $range * ($percentAdj / 100);
+            
+            $grade = 'C';
+            $error = 0;
+            $judgement = 'Reject';
+            
+            if ($trend === 'Smaller') {
+                $error = $readingValue - $minSpec;
+                $thresholdA = $minSpec + $tolerance;
+                
+                if ($readingValue < $minSpec || $readingValue > $maxSpec) {
+                    $grade = 'C';
+                } elseif ($readingValue >= $thresholdA && $readingValue <= $maxSpec) {
+                    $grade = 'A';
+                } else {
+                    $grade = 'B';
+                }
+            } elseif ($trend === 'Bigger') {
+                $error = $readingValue - $maxSpec;
+                $thresholdA = $maxSpec - $tolerance;
+                
+                if ($readingValue < $minSpec || $readingValue > $maxSpec) {
+                    $grade = 'C';
+                } elseif ($readingValue <= $thresholdA && $readingValue >= $minSpec) {
+                    $grade = 'A';
+                } else {
+                    $grade = 'B';
+                }
+            }
+            
+            $judgement = ($grade === 'C') ? 'Reject' : 'Pass';
+            
+            // 🔥 Format ค่าเฉลี่ย
+            $formattedAvg = rtrim(rtrim(number_format($readingValue, 6, '.', ''), '0'), '.');
+            
+            // Set ค่าให้แต่ละ Point (รวมถึงค่าเฉลี่ย)
+            $set("../../../../../calibration_data.readings.{$index}.reading", $formattedAvg);
+            $set("../../../../../calibration_data.readings.{$index}.error", number_format($error, 4));
+            $set("../../../../../calibration_data.readings.{$index}.Judgement", $judgement);
+            $set("../../../../../calibration_data.readings.{$index}.grade", $grade);
+        }
+        
+        // คำนวณ Overall Status และ Level
+        self::calculateOverallStatus($get, $set);
+    }
+    
+    // 🔥 ฟังก์ชันคำนวณสถานะรวม
+    protected static function calculateOverallStatus(Get $get, Set $set)
+    {
+        $readings = $get('../../../../../calibration_data.readings') ?? [];
+        $instrumentId = $get('../../../../../instrument_id');
+        
+        if (!$instrumentId || empty($readings)) return;
+        
+        // 🔥 ตรวจสอบว่ากรอกครบทุก Point หรือยัง
+        $allPointsFilled = true;
+        foreach ($readings as $reading) {
+            $readingValue = $reading['reading'] ?? null;
+            if (is_null($readingValue) || $readingValue === '' || $readingValue == 0) {
+                $allPointsFilled = false;
+                break;
+            }
+        }
+        
+        // ถ้ายังไม่ครบ ไม่ต้องคำนวณ Overall Status
+        if (!$allPointsFilled) {
+            return;
+        }
+        
+        $instrument = \App\Models\Instrument::find($instrumentId);
+        if (!$instrument) return;
+        
+        $grades = collect($readings)->pluck('grade')->filter();
+        
+        $level = 'A';
+        if ($grades->contains('C')) {
+            $level = 'C';
+        } elseif ($grades->contains('B')) {
+            $level = 'B';
+        }
+        
+        $status = $grades->contains('C') ? 'Reject' : 'Pass';
+        
+        $set('../../../../../result_status', $status);
+        $set('../../../../../cal_level', $level);
+        
+        // Update Next Cal Date
+        $calDate = $get('../../../../../cal_date');
+        if ($calDate) {
+            $nextDate = match($level) {
+                'A' => \Carbon\Carbon::parse($calDate)->addMonths($instrument->cal_freq_months ?? 12)->endOfMonth(),
+                'B' => \Carbon\Carbon::parse($calDate)->addMonth()->endOfMonth(),
+                'C' => null,
+                default => \Carbon\Carbon::parse($calDate)->addMonths($instrument->cal_freq_months ?? 12)->endOfMonth(),
+            };
+            
+            if ($nextDate) {
+                $set('../../../../../next_cal_date', $nextDate->format('Y-m-d'));
+            }
+        }
     }
 
     // 🔥 ฟังก์ชันคำนวณทั้งหมดอัตโนมัติ (Auto Calculate All Points)
@@ -613,10 +813,10 @@ class CalibrationKNewResource extends Resource
         if (!$instrument) return;
         
         $nextDate = match($level) {
-            'A' => \Carbon\Carbon::parse($calDate)->addMonths($instrument->cal_freq_months ?? 12)->endOfMonth(), // 🔥 ปรับเป็นสิ้นเดือน
-            'B' => \Carbon\Carbon::parse($calDate)->addMonth()->endOfMonth(), // 🔥 ปรับเป็นสิ้นเดือน
+            'A' => \Carbon\Carbon::parse($calDate)->addMonths($instrument->cal_freq_months ?? 12)->endOfMonth(),
+            'B' => \Carbon\Carbon::parse($calDate)->addMonth()->endOfMonth(),
             'C' => null,
-            default => \Carbon\Carbon::parse($calDate)->addMonths($instrument->cal_freq_months ?? 12)->endOfMonth(), // 🔥 ปรับเป็นสิ้นเดือน
+            default => \Carbon\Carbon::parse($calDate)->addMonths($instrument->cal_freq_months ?? 12)->endOfMonth(),
         };
         
         if ($nextDate) {
@@ -690,10 +890,10 @@ class CalibrationKNewResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListCalibrationKNews::route('/'),
-            'create' => Pages\CreateCalibrationKNew::route('/create'),
-            'view' => Pages\ViewCalibrationKNew::route('/{record}'),
-            'edit' => Pages\EditCalibrationKNew::route('/{record}/edit'),
+            'index' => Pages\ListCalibrationPlugGauges::route('/'),
+            'create' => Pages\CreateCalibrationPlugGauge::route('/create'),
+            'view' => Pages\ViewCalibrationPlugGauge::route('/{record}'),
+            'edit' => Pages\EditCalibrationPlugGauge::route('/{record}/edit'),
         ];
     }
 }

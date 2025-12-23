@@ -56,7 +56,7 @@ class CalibrationSnapGaugeResource extends Resource
                                     ->label('เลือกเครื่องมือ (Code No)')
                                     ->searchable()
                                     ->required()
-                                    ->placeholder('รหัสทรัพย์สิน หรือ รหัสประเภทเครื่องมือ')
+                                    ->placeholder('รหัสเครื่องมือ หรือ รหัสประเภทเครื่องมือ')
                                     ->columnSpan(2)
                                     ->reactive()
                                     ->getSearchResultsUsing(function (string $search) {

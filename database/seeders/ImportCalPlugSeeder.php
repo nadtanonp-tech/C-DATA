@@ -10,54 +10,131 @@ class ImportCalPlugSeeder extends Seeder
 {
     public function run()
     {
+        // 🔥 ลบข้อมูลเก่าเฉพาะ Plug Gauge (8-03-%) ก่อน import
+        $plugGaugeInstrumentIds = DB::table('instruments')
+            ->where('code_no', 'LIKE', '8-03-%')
+            ->pluck('id')
+            ->toArray();
+        
+        if (!empty($plugGaugeInstrumentIds)) {
+            DB::table('calibration_logs')
+                ->whereIn('instrument_id', $plugGaugeInstrumentIds)
+                ->delete();
+            
+            $this->command->info('🗑️ ลบข้อมูล Plug Gauge เก่าเรียบร้อยแล้ว');
+        }
+
         // 1. ดึงข้อมูลจากตารางเก่า
         $oldLogs = DB::table('CALPlug')->get();
 
         $batchData = [];
         $batchSize = 50; 
+        $importCount = 0;
+        $skipCount = 0;
 
         foreach ($oldLogs as $row) {
             
             // 2. หา ID เครื่องมือ
             $instrument = DB::table('instruments')
-                            ->where('code_no', trim($row->CodeNo))
-                            ->select('id')
+                            ->where('code_no', strtoupper(trim($row->CodeNo)))
+                            ->select('id', 'tool_type_id')
                             ->first();
 
-            if (!$instrument) continue; 
+            if (!$instrument) {
+                $skipCount++;
+                continue;
+            }
 
-            // 3. ปั้น JSON (จัดกลุ่ม GO และ NOGO)
-            // สังเกตการใช้ $row->{'ชื่อฟิลด์'} สำหรับชื่อที่มีเครื่องหมายลบ
+            // 🔥 ดึง dimension_specs จาก tool_type เพื่อเอา min/max spec
+            $toolType = DB::table('tool_types')
+                        ->where('id', $instrument->tool_type_id)
+                        ->select('dimension_specs')
+                        ->first();
+            
+            $dimensionSpecs = $toolType ? json_decode($toolType->dimension_specs, true) : [];
+            
+            // 🔥 หา spec สำหรับ Point A (GO) และ Point B (NOGO)
+            $goSpec = null;
+            $nogoSpec = null;
+            
+            foreach ($dimensionSpecs as $spec) {
+                $point = strtoupper($spec['point'] ?? '');
+                if ($point === 'A' || str_contains(strtoupper($point), 'GO')) {
+                    $goSpec = $spec;
+                } elseif ($point === 'B' || str_contains(strtoupper($point), 'NOGO')) {
+                    $nogoSpec = $spec;
+                }
+            }
+
+            // 3. 🔥 ปั้น JSON ใน format ใหม่ที่มี readings และ measurements
+            $readings = [];
+            
+            // 🔥 Point A(GO) - 3 ค่าวัด
+            $goMeasurements = [
+                ['value' => $this->parseNumeric($row->{'GO1-1'})],
+                ['value' => $this->parseNumeric($row->{'GO1-2'})],
+                ['value' => $this->parseNumeric($row->{'GO1-3'})],
+            ];
+            
+            // ดึง min/max spec จาก dimension_specs
+            $goMinSpec = null;
+            $goMaxSpec = null;
+            $goTrend = 'Smaller';
+            
+            if ($goSpec && isset($goSpec['specs'][0])) {
+                $mainSpec = $goSpec['specs'][0];
+                $goMinSpec = $mainSpec['min'] ?? null;
+                $goMaxSpec = $mainSpec['max'] ?? null;
+                $goTrend = $goSpec['trend'] ?? 'Smaller';
+            }
+            
+            $readings[] = [
+                'point' => 'A(GO)',
+                'trend' => $goTrend,
+                'std_label' => 'STD',
+                'min_spec' => $goMinSpec !== null ? rtrim(rtrim(number_format((float)$goMinSpec, 8, '.', ''), '0'), '.') : null,
+                'max_spec' => $goMaxSpec !== null ? rtrim(rtrim(number_format((float)$goMaxSpec, 8, '.', ''), '0'), '.') : null,
+                'measurements' => $goMeasurements,
+                'reading' => $this->parseNumeric($row->AvgGO),
+                'error' => null,
+                'Judgement' => trim($row->JudgeGO) ?: null,
+                'grade' => trim($row->GradeGO) ?: null,
+            ];
+            
+            // 🔥 Point B(NOGO) - 2 ค่าวัด
+            $nogoMeasurements = [
+                ['value' => $this->parseNumeric($row->{'NOGO1-1'})],
+                ['value' => $this->parseNumeric($row->{'NOGO1-2'})],
+            ];
+            
+            // ดึง min/max spec จาก dimension_specs
+            $nogoMinSpec = null;
+            $nogoMaxSpec = null;
+            $nogoTrend = 'Bigger';
+            
+            if ($nogoSpec && isset($nogoSpec['specs'][0])) {
+                $mainSpec = $nogoSpec['specs'][0];
+                $nogoMinSpec = $mainSpec['min'] ?? null;
+                $nogoMaxSpec = $mainSpec['max'] ?? null;
+                $nogoTrend = $nogoSpec['trend'] ?? 'Bigger';
+            }
+            
+            $readings[] = [
+                'point' => 'B(NOGO)',
+                'trend' => $nogoTrend,
+                'std_label' => 'STD',
+                'min_spec' => $nogoMinSpec !== null ? rtrim(rtrim(number_format((float)$nogoMinSpec, 8, '.', ''), '0'), '.') : null,
+                'max_spec' => $nogoMaxSpec !== null ? rtrim(rtrim(number_format((float)$nogoMaxSpec, 8, '.', ''), '0'), '.') : null,
+                'measurements' => $nogoMeasurements,
+                'reading' => $this->parseNumeric($row->AvgNOGO),
+                'error' => null,
+                'Judgement' => trim($row->JudgeNOGO) ?: null,
+                'grade' => trim($row->GradeNOGO) ?: null,
+            ];
+            
+            // 🔥 สร้าง calibration_data ใน format ใหม่
             $calData = [
-                'Type' => 'Plug Gauge',
-                'GO' => [
-                    'Readings' => [
-                        '1-1' => $row->{'GO1-1'},
-                        '1-2' => $row->{'GO1-2'},
-                        '1-3' => $row->{'GO1-3'},
-                        '2-1' => $row->{'GO2-1'},
-                        '2-2' => $row->{'GO2-2'},
-                        '2-3' => $row->{'GO2-3'},
-                    ],
-                    'Avg'   => $row->AvgGO,
-                    'Judge' => $row->JudgeGO,
-                    'Grade' => $row->GradeGO,
-                ],
-                'NOGO' => [
-                    'Readings' => [
-                        '1-1' => $row->{'NOGO1-1'},
-                        '1-2' => $row->{'NOGO1-2'},
-                        '2-1' => $row->{'NOGO2-1'},
-                        '2-2' => $row->{'NOGO2-2'},
-                    ],
-                    'Avg'   => $row->AvgNOGO,
-                    'Judge' => $row->JudgeNOGO,
-                    'Grade' => $row->GradeNOGO,
-                ],
-                'MastersUsed' => array_filter([
-                    $row->CALMaster1,
-                    $row->CALMaster2
-                ])
+                'readings' => $readings,
             ];
 
             // 4. เตรียมข้อมูลบันทึก
@@ -66,15 +143,17 @@ class ImportCalPlugSeeder extends Seeder
                 'cal_date'      => $this->parseDate($row->CalDate),
                 'next_cal_date' => $this->parseDate($row->DueDate),
                 'cal_by'        => trim($row->Section),
-                'cal_place'     => 'Internal',
                 
                 'calibration_data' => json_encode($calData, JSON_UNESCAPED_UNICODE),
                 
-                'environment'   => "Temp: {$row->Temp} / Humid: {$row->Humidity}",
-                'result_status' => trim($row->Total), // ผลรวม (Pass/Fail)
-                'remark'        => trim($row->RemarkC),
-                'grade_result'  => trim($row->Grade), // เก็บเกรดรวมไว้ด้วยถ้ามีคอลัมน์รองรับ (หรือเก็บใน JSON ก็ได้)
-                'legacy_source_table' => 'CALPlug',
+                'environment'   => json_encode([
+                    'temperature' => $this->parseNumeric($row->Temp),
+                    'humidity' => $this->parseNumeric($row->Humidity),
+                ], JSON_UNESCAPED_UNICODE),
+                
+                'result_status' => trim($row->Total) ?: null,
+                'cal_level'     => trim($row->Grade) ?: null,
+                'remark'        => trim($row->RemarkC) ?: null,
                 
                 'created_at'    => now(),
                 'updated_at'    => now(),
@@ -82,13 +161,17 @@ class ImportCalPlugSeeder extends Seeder
 
             if (count($batchData) >= $batchSize) {
                 DB::table('calibration_logs')->insert($batchData);
+                $importCount += count($batchData);
                 $batchData = [];
             }
         }
 
         if (!empty($batchData)) {
             DB::table('calibration_logs')->insert($batchData);
+            $importCount += count($batchData);
         }
+        
+        $this->command->info("✅ Import เสร็จสิ้น: {$importCount} records, ข้าม: {$skipCount} records");
     }
 
     private function parseDate($dateVal)
@@ -97,5 +180,12 @@ class ImportCalPlugSeeder extends Seeder
         try {
             return Carbon::parse($dateVal)->format('Y-m-d');
         } catch (\Exception $e) { return null; }
+    }
+    
+    private function parseNumeric($val)
+    {
+        if ($val === null || $val === '') return null;
+        $cleaned = trim(str_replace([',', ' '], '', $val));
+        return is_numeric($cleaned) ? $cleaned : null;
     }
 }

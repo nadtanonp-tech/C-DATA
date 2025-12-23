@@ -61,7 +61,6 @@ class ImportCalSerPlSeeder extends Seeder
                 'instrument_id' => $instrument->id,
                 'cal_date'      => $calDate,
                 'next_cal_date' => $dueDate,
-                'cal_by'        => trim($row->Section), // เอา Section มาใส่ช่องผู้สอบ
                 'cal_place'     => 'Internal', // เดาว่าเป็น Internal เพราะมีข้อมูลละเอียด
 
                 // แปลง Array เป็น JSON

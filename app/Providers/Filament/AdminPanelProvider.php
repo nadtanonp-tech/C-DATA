@@ -31,6 +31,11 @@ class AdminPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Amber,
             ])
+            ->brandName('CalibrationSystem')
+            ->brandLogo(asset('apple-touch-logo12.png'))
+            ->darkModeBrandLogo(asset('apple-touch-logo12.png'))
+            ->brandLogoHeight('4.6rem')
+            ->favicon(asset('apple-touch-logo12.png'))
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([

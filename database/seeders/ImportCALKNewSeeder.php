@@ -156,7 +156,6 @@ class ImportCALKNewSeeder extends Seeder
                 'instrument_id' => $instrumentId,
                 'cal_date'      => $this->parseDate($row->CalDate),
                 'next_cal_date' => $this->parseDate($row->DueDate),
-                'cal_by'        => trim($row->Section ?? '') ?: null,
                 'cal_place'     => 'Internal', // ค่าคงที่
                 
                 // 🔥 JSON ที่ตรงกับ Form

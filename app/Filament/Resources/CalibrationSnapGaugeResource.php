@@ -266,6 +266,7 @@ class CalibrationSnapGaugeResource extends Resource
                                         ->label('ค่าที่วัดได้')
                                         ->columnSpan(fn (Get $get) => ($get('std_label') === 'วัดเกลียว') ? 2 : 1)
                                         ->live(onBlur: true)
+                                        ->placeholder('0.000')
                                         ->afterStateUpdated(function ($state, Set $set, Get $get) {
                                             // ตรวจสอบว่ากรอกครบทุก Point หรือยัง
                                             $readings = $get('../../../calibration_data.readings') ?? [];
@@ -391,7 +392,37 @@ class CalibrationSnapGaugeResource extends Resource
                             DatePicker::make('next_cal_date')
                                 ->label('วันครบกำหนดครั้งถัดไป (Next Cal)')
                                 ->dehydrated()
-                                ->required(),
+                                ->required()
+                                ->live()
+                                ->afterStateUpdated(function ($state, Get $get) {
+                                    // คำนวณความถี่จาก cal_date และ next_cal_date
+                                    $calDate = $get('cal_date');
+                                    $instrumentId = $get('instrument_id');
+                                    
+                                    if (!$calDate || !$state || !$instrumentId) return;
+                                    
+                                    $instrument = \App\Models\Instrument::find($instrumentId);
+                                    if (!$instrument) return;
+                                    
+                                    // ถ้า Instrument ยังไม่มี cal_freq_months → คำนวณและ save
+                                    if (empty($instrument->cal_freq_months) || $instrument->cal_freq_months == 0) {
+                                        $calDateCarbon = \Carbon\Carbon::parse($calDate);
+                                        $nextDateCarbon = \Carbon\Carbon::parse($state);
+                                        
+                                        // คำนวณจำนวนเดือนที่ต่างกัน
+                                        $diffMonths = (int) round($calDateCarbon->diffInMonths($nextDateCarbon));
+                                        
+                                        if ($diffMonths > 0) {
+                                            $instrument->update(['cal_freq_months' => $diffMonths]);
+                                            
+                                            \Filament\Notifications\Notification::make()
+                                                ->title('อัปเดตความถี่สำเร็จ')
+                                                ->body("บันทึกความถี่ {$diffMonths} เดือน ให้กับ {$instrument->code_no}")
+                                                ->success()
+                                                ->send();
+                                        }
+                                    }
+                                }),
                             
                             TextInput::make('remark')
                                 ->label('หมายเหตุ (Remark)'),

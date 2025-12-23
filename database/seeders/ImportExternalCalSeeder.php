@@ -56,8 +56,6 @@ class ImportExternalCalSeeder extends Seeder
                 
                 'cal_date'      => $this->parseDate($row->CalDate),
                 'next_cal_date' => $this->parseDate($row->DueDate),
-                
-                'cal_by'        => 'Vendor', 
                 'cal_place'     => 'External', 
                 
                 'calibration_data' => json_encode($calData, JSON_UNESCAPED_UNICODE),

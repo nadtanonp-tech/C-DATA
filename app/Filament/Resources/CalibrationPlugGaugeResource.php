@@ -242,7 +242,7 @@ class CalibrationPlugGaugeResource extends Resource
                     ->schema([
                         Repeater::make('calibration_data.readings')
                             ->label('รายการจุดตรวจสอบ')
-                            ->itemLabel(fn (array $state): ?string => 'Point ' . ($state['point'] ?? '?') . ' | Avg: ' . ($state['reading'] . ' mm.' ?? '-'))
+                            ->itemLabel(fn (array $state): ?string => 'Point ' . ($state['point'] ?? '?'))
                             ->schema([
                                 Grid::make(12)->schema([
                                     // 🔥 Hidden fields
@@ -273,6 +273,7 @@ class CalibrationPlugGaugeResource extends Resource
                                             TextInput::make('value')
                                                 ->label('ค่าวัด')
                                                 ->numeric()
+                                                ->placeholder('0.000')
                                                 ->live(debounce: 500)
                                                 ->afterStateUpdated(function ($state, Set $set, Get $get) {
                                                     // คำนวณค่าเฉลี่ยจาก measurements ทั้งหมด
@@ -301,6 +302,7 @@ class CalibrationPlugGaugeResource extends Resource
                                                     ->label('ค่าเฉลี่ย (Avg)')
                                                     ->disabled()
                                                     ->dehydrated()
+                                                    
                                                     ->extraAttributes([
                                                         'style' => 'font-family: monospace; font-weight: 700; text-align: center; background-color: #e0f2fe; color: #0369a1; font-size: 1.1rem;'
                                                     ]),
@@ -418,7 +420,37 @@ class CalibrationPlugGaugeResource extends Resource
                             DatePicker::make('next_cal_date')
                                 ->label('วันครบกำหนดครั้งถัดไป (Next Cal)')
                                 ->dehydrated()
-                                ->required(),
+                                ->required()
+                                ->live()
+                                ->afterStateUpdated(function ($state, Get $get) {
+                                    // คำนวณความถี่จาก cal_date และ next_cal_date
+                                    $calDate = $get('cal_date');
+                                    $instrumentId = $get('instrument_id');
+                                    
+                                    if (!$calDate || !$state || !$instrumentId) return;
+                                    
+                                    $instrument = \App\Models\Instrument::find($instrumentId);
+                                    if (!$instrument) return;
+                                    
+                                    // ถ้า Instrument ยังไม่มี cal_freq_months → คำนวณและ save
+                                    if (empty($instrument->cal_freq_months) || $instrument->cal_freq_months == 0) {
+                                        $calDateCarbon = \Carbon\Carbon::parse($calDate);
+                                        $nextDateCarbon = \Carbon\Carbon::parse($state);
+                                        
+                                        // คำนวณจำนวนเดือนที่ต่างกัน
+                                        $diffMonths = (int) round($calDateCarbon->diffInMonths($nextDateCarbon));
+                                        
+                                        if ($diffMonths > 0) {
+                                            $instrument->update(['cal_freq_months' => $diffMonths]);
+                                            
+                                            \Filament\Notifications\Notification::make()
+                                                ->title('อัปเดตความถี่สำเร็จ')
+                                                ->body("บันทึกความถี่ {$diffMonths} เดือน ให้กับ {$instrument->code_no}")
+                                                ->success()
+                                                ->send();
+                                        }
+                                    }
+                                }),
                             
                             TextInput::make('remark')
                                 ->label('หมายเหตุ (Remark)'),

@@ -345,7 +345,8 @@ class InstrumentResource extends Resource
                 // เดี๋ยวเรามาเติมตัวกรองข้อมูลทีหลัง
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->color('warning'),
                 // 🔴 ปุ่มยกเลิกเครื่องมือ (Custom Action) 🔴
                 Action::make('cancel_instrument')
                     ->label('ยกเลิก') // ชื่อปุ่ม

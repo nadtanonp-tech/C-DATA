@@ -29,9 +29,11 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 class CalibrationSnapGaugeResource extends Resource
 {
     protected static ?string $model = CalibrationRecord::class;
+    protected static ?string $slug = 'calibration-snap-gauge'; // 🔥 กำหนด slug สำหรับ URL
 
     protected static ?string $navigationLabel = 'Snap Gauge';
     protected static ?string $navigationGroup = 'Gauge Calibration';
+    protected static ?string $modelLabel = 'Snap Gauge';
     protected static ?int $navigationSort = 3;
 
     public static function getEloquentQuery(): Builder
@@ -232,7 +234,7 @@ class CalibrationSnapGaugeResource extends Resource
                     ->schema([
                         Repeater::make('calibration_data.readings')
                             ->label('รายการจุดตรวจสอบ')
-                            ->itemLabel(fn (array $state): ?string => 'Point ' . ($state['point'] ?? '?'))
+                            ->itemLabel(fn (array $state): ?string => 'Point ' . ($state['point'] ?? '?') . ' - STD')
                             ->schema([
                                 Grid::make(9)->schema([
                                     Select::make('trend')
@@ -698,12 +700,19 @@ class CalibrationSnapGaugeResource extends Resource
                 
                 TextColumn::make('cal_level')
                     ->label('Level')
+                    ->color(fn (string $state): string => match ($state) {
+                        'A' => 'success',
+                        'B' => 'warning',
+                        'C' => 'danger',
+                        default => 'gray',
+                    })
                     ->badge(),
             ])
             ->filters([])
             ->actions([
                 Actions\ViewAction::make(),
-                Actions\EditAction::make(),
+                Actions\EditAction::make()
+                    ->color('warning'),
                 Actions\DeleteAction::make(),
             ])
             ->bulkActions([

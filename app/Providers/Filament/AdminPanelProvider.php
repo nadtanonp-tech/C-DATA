@@ -29,17 +29,17 @@ class AdminPanelProvider extends PanelProvider
             ->login()
             ->spa()
             ->colors([
-                'primary' => Color::Amber,
+                'primary' => Color::hex('#1a3e6c'),
             ])
             ->brandName('CalibrationSystem')
             ->brandLogo(asset('apple-touch-logo12.png'))
             ->darkModeBrandLogo(asset('apple-touch-logo12.png'))
             ->brandLogoHeight('4.6rem')
-            ->favicon(asset('apple-touch-logo12.png'))
+            ->favicon(asset('favicon.ico'))
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
-                Pages\Dashboard::class,
+                // ใช้ Custom Dashboard จาก app/Filament/Pages/Dashboard.php แทน
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([

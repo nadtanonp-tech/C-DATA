@@ -266,6 +266,80 @@ class CreateToolType extends CreateRecord
         unset($data['criteria_2']);
         unset($data['criteria_unit_selection']);
 
+        // 🔥 กรอง dimension_specs - ลบ specs ที่ไม่มีข้อมูล และ trend ที่ว่างออก
+        if (isset($data['dimension_specs']) && is_array($data['dimension_specs'])) {
+            $filteredPoints = [];
+            
+            foreach ($data['dimension_specs'] as $point) {
+                $filteredSpecs = [];
+                
+                if (isset($point['specs']) && is_array($point['specs'])) {
+                    foreach ($point['specs'] as $spec) {
+                        $label = $spec['label'] ?? null;
+                        
+                        // ตรวจสอบว่า spec นี้มีค่าที่มีความหมายหรือไม่
+                        $hasValue = false;
+                        
+                        // สำหรับ STD, Major, Pitch, Plug ต้องมี min หรือ max
+                        if (in_array($label, ['STD', 'Major', 'Pitch', 'Plug'])) {
+                            $min = $spec['min'] ?? null;
+                            $max = $spec['max'] ?? null;
+                            // ตรวจสอบว่ามีค่าที่ไม่ใช่ 0/null/ว่าง
+                            $hasValue = ($min !== null && $min !== '' && $min !== '0' && $min !== 0 && (float)$min !== 0.0) ||
+                                       ($max !== null && $max !== '' && $max !== '0' && $max !== 0 && (float)$max !== 0.0);
+                        }
+                        // สำหรับ วัดเกลียว ต้องมี standard_value
+                        elseif ($label === 'วัดเกลียว') {
+                            $stdValue = $spec['standard_value'] ?? null;
+                            $hasValue = $stdValue !== null && $stdValue !== '' && $stdValue !== '0' && $stdValue !== 0;
+                        }
+                        // สำหรับ S ต้องมี s_std
+                        elseif ($label === 'S') {
+                            $sStd = $spec['s_std'] ?? null;
+                            $hasValue = $sStd !== null && $sStd !== '' && $sStd !== '0' && $sStd !== 0 && (float)$sStd !== 0.0;
+                        }
+                        // สำหรับ Cs ต้องมี cs_std
+                        elseif ($label === 'Cs') {
+                            $csStd = $spec['cs_std'] ?? null;
+                            $hasValue = $csStd !== null && $csStd !== '' && $csStd !== '0' && $csStd !== 0 && (float)$csStd !== 0.0;
+                        }
+                        
+                        // เก็บ spec นี้ถ้ามีค่าที่มีความหมาย
+                        if ($hasValue) {
+                            // กรองเอาเฉพาะ key ที่มีค่า
+                            $filteredSpec = array_filter($spec, function ($value, $key) {
+                                if ($key === 'label') return true;
+                                if ($value === null || $value === '' || $value === '0' || $value === 0) {
+                                    return false;
+                                }
+                                return true;
+                            }, ARRAY_FILTER_USE_BOTH);
+                            
+                            $filteredSpecs[] = $filteredSpec;
+                        }
+                    }
+                }
+                
+                // เก็บ point นี้ถ้ามี specs ที่มีค่า
+                if (!empty($filteredSpecs)) {
+                    $filteredPoint = [
+                        'point' => $point['point'] ?? null,
+                        'specs' => $filteredSpecs,
+                    ];
+                    
+                    // เก็บ trend เฉพาะถ้ามีค่าที่ไม่ว่าง/null
+                    $trend = $point['trend'] ?? null;
+                    if ($trend !== null && $trend !== '' && $trend !== '0' && $trend !== 0) {
+                        $filteredPoint['trend'] = $trend;
+                    }
+                    
+                    $filteredPoints[] = $filteredPoint;
+                }
+            }
+            
+            $data['dimension_specs'] = $filteredPoints;
+        }
+
         return $data;
     }
 }

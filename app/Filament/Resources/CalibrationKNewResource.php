@@ -29,9 +29,11 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 class CalibrationKNewResource extends Resource
 {
     protected static ?string $model = CalibrationRecord::class;
+    protected static ?string $slug = 'calibration-k-gauge'; // 🔥 กำหนด slug สำหรับ URL
 
     protected static ?string $navigationLabel = 'K-Gauge';
     protected static ?string $navigationGroup = 'Gauge Calibration';
+    protected static ?string $modelLabel = 'K-Gauge';
     protected static ?int $navigationSort = 2;
 
     public static function getEloquentQuery(): Builder
@@ -98,36 +100,35 @@ class CalibrationKNewResource extends Resource
                                             foreach ($dimensionSpecs as $spec) {
                                                 $point = $spec['point'] ?? null;
                                                 if (!$point) continue;
+                                                
+                                                $trend = $spec['trend'] ?? 'Smaller';
                                         
-                                                $readingItem = [
-                                                    'point' => $point,
-                                                    'trend' => $spec['trend'] ?? 'Smaller',
-                                                ];
-                                        
-                                                if (isset($spec['specs']) && is_array($spec['specs']) && count($spec['specs']) > 0) {
-                                                    $mainSpec = $spec['specs'][0];
-                                                    $readingItem['std_label'] = $mainSpec['label'] ?? 'STD';
-                                                    
-                                                    if (($mainSpec['label'] ?? '') === 'วัดเกลียว') {
-                                                        $readingItem['min_spec'] = $mainSpec['standard_value'] ?? null;
-                                                        $readingItem['max_spec'] = null;
-                                                    // 🔥 ตั้งค่า Default ให้ Link กับหน้าจอ
-                                                        $readingItem['Judgement'] = 'Pass';
+                                                // 🔥 Loop ทุก specs ใน Point (STD, Major, Pitch, วัดเกลียว ฯลฯ)
+                                                if (isset($spec['specs']) && is_array($spec['specs'])) {
+                                                    foreach ($spec['specs'] as $specItem) {
+                                                        $readingItem = [
+                                                            'point' => $point,
+                                                            'trend' => $trend,
+                                                            'std_label' => $specItem['label'] ?? 'STD',
+                                                        ];
                                                         
-                                                    } else {
-                                                        $valMin = $mainSpec['min'] ?? null;
-                                                        $valMax = $mainSpec['max'] ?? null;
-                                                        // Format Scientific Notation
-                                                        $readingItem['min_spec'] = $valMin !== null ? rtrim(rtrim(number_format((float)$valMin, 8, '.', ''), '0'), '.') : null;
-                                                        $readingItem['max_spec'] = $valMax !== null ? rtrim(rtrim(number_format((float)$valMax, 8, '.', ''), '0'), '.') : null;
+                                                        if (($specItem['label'] ?? '') === 'วัดเกลียว') {
+                                                            // 🔥 สำหรับวัดเกลียว - ใช้ standard_value
+                                                            $readingItem['standard_value'] = $specItem['standard_value'] ?? null;
+                                                            $readingItem['min_spec'] = null;
+                                                            $readingItem['max_spec'] = null;
+                                                            $readingItem['Judgement'] = 'Pass';
+                                                        } else {
+                                                            // 🔥 สำหรับ STD, Major, Pitch ฯลฯ - ใช้ min/max
+                                                            $valMin = $specItem['min'] ?? null;
+                                                            $valMax = $specItem['max'] ?? null;
+                                                            $readingItem['min_spec'] = $valMin !== null ? rtrim(rtrim(number_format((float)$valMin, 8, '.', ''), '0'), '.') : null;
+                                                            $readingItem['max_spec'] = $valMax !== null ? rtrim(rtrim(number_format((float)$valMax, 8, '.', ''), '0'), '.') : null;
+                                                        }
+                                                        
+                                                        $readings[] = $readingItem;
                                                     }
                                                 }
-                                        
-                                                if (isset($spec['specs'])) {
-                                                    $readingItem['all_specs'] = $spec['specs'];
-                                                }
-                                        
-                                                $readings[] = $readingItem;
                                             }
                                     
                                             $set('calibration_data.readings', $readings);
@@ -232,7 +233,7 @@ class CalibrationKNewResource extends Resource
                     ->schema([
                         Repeater::make('calibration_data.readings')
                             ->label('รายการจุดตรวจสอบ')
-                            ->itemLabel(fn (array $state): ?string => 'Point ' . ($state['point'] ?? '?'))
+                            ->itemLabel(fn (array $state): ?string => 'Point ' . ($state['point'] ?? '?') . ' - ' . ($state['std_label'] ?? 'STD'))
                             ->schema([
                                 Grid::make(9)->schema([
                                     Select::make('trend')
@@ -249,10 +250,26 @@ class CalibrationKNewResource extends Resource
                                     Forms\Components\Hidden::make('std_label')
                                         ->dehydrated(),
 
-                                    TextInput::make('min_spec')
-                                        ->label(fn (Get $get) => ($get('std_label') === 'วัดเกลียว') ? 'Standard' : 'Min')
-                                        ->columnSpan(fn (Get $get) => ($get('std_label') === 'วัดเกลียว') ? 2 : 1)
+                                    // 🔥 ฟิลด์สำหรับ "วัดเกลียว" - แสดงเฉพาะเมื่อ std_label === 'วัดเกลียว'
+                                    TextInput::make('standard_value')
+                                        ->label('ค่ามาตรฐาน')
+                                        ->columnSpan(2)
                                         ->disabled()
+                                        ->hidden(fn (Get $get) => ($get('std_label') !== 'วัดเกลียว'))
+                                        ->dehydrated(),
+
+                                    TextInput::make('measurement')
+                                        ->label('ค่าวัดเกลียว')
+                                        ->columnSpan(2)
+                                        ->placeholder('กรอกค่าวัดเกลียว...')
+                                        ->hidden(fn (Get $get) => ($get('std_label') !== 'วัดเกลียว'))
+                                        ->dehydrated(),
+
+                                    // 🔥 ฟิลด์สำหรับ STD ปกติ - ซ่อนเมื่อเป็นวัดเกลียว
+                                    TextInput::make('min_spec')
+                                        ->label('Min')
+                                        ->disabled()
+                                        ->hidden(fn (Get $get) => ($get('std_label') === 'วัดเกลียว'))
                                         ->dehydrated(),
                                     
                                     TextInput::make('max_spec')
@@ -264,15 +281,20 @@ class CalibrationKNewResource extends Resource
                                         
                                     TextInput::make('reading')
                                         ->label('ค่าที่วัดได้')
-                                        ->columnSpan(fn (Get $get) => ($get('std_label') === 'วัดเกลียว') ? 2 : 1)
                                         ->live(onBlur: true)
                                         ->placeholder('0.000')
+                                        ->hidden(fn (Get $get) => ($get('std_label') === 'วัดเกลียว'))
                                         ->afterStateUpdated(function ($state, Set $set, Get $get) {
-                                            // ตรวจสอบว่ากรอกครบทุก Point หรือยัง
+                                            // ตรวจสอบว่ากรอกครบทุก Point ที่ต้องกรอก reading หรือยัง
                                             $readings = $get('../../../calibration_data.readings') ?? [];
                                             $allFilled = true;
                                             
                                             foreach ($readings as $reading) {
+                                                // 🔥 ข้าม วัดเกลียว เพราะใช้ measurement แทน reading
+                                                if (($reading['std_label'] ?? '') === 'วัดเกลียว') {
+                                                    continue;
+                                                }
+                                                
                                                 if (empty($reading['reading']) || $reading['reading'] == 0) {
                                                     $allFilled = false;
                                                     break;
@@ -340,6 +362,11 @@ class CalibrationKNewResource extends Resource
                                             'B' => 'Grade B (Warning)',
                                             'C' => 'Grade C (Fail)',
                                         ])
+                                        ->live()
+                                        ->afterStateUpdated(function ($state, Set $set, Get $get) {
+                                            // 🔥 เมื่อเลือก Grade แล้ว → คำนวณ Overall Level และ Status
+                                            self::calculateOverallFromGrades($get, $set);
+                                        })
                                         ->dehydrated(),
                                 ]),
                             ])
@@ -501,6 +528,48 @@ class CalibrationKNewResource extends Resource
         
         // คำนวณ Overall Status และ Level
         $readings = $get('../../../calibration_data.readings') ?? [];
+        $grades = collect($readings)->pluck('grade')->filter();
+        
+        $level = 'A';
+        if ($grades->contains('C')) {
+            $level = 'C';
+        } elseif ($grades->contains('B')) {
+            $level = 'B';
+        }
+        
+        $status = $grades->contains('C') ? 'Reject' : 'Pass';
+        
+        $set('../../../result_status', $status);
+        $set('../../../cal_level', $level);
+        
+        // Update Next Cal Date
+        $calDate = $get('../../../cal_date');
+        if ($calDate) {
+            $nextDate = match($level) {
+                'A' => \Carbon\Carbon::parse($calDate)->addMonths($instrument->cal_freq_months ?? 12)->endOfMonth(),
+                'B' => \Carbon\Carbon::parse($calDate)->addMonth()->endOfMonth(),
+                'C' => null,
+                default => \Carbon\Carbon::parse($calDate)->addMonths($instrument->cal_freq_months ?? 12)->endOfMonth(),
+            };
+            
+            if ($nextDate) {
+                $set('../../../next_cal_date', $nextDate->format('Y-m-d'));
+            }
+        }
+    }
+
+    // 🔥 ฟังก์ชันคำนวณ Overall จาก Grades ทั้งหมด (เรียกเมื่อเลือก Grade Result)
+    protected static function calculateOverallFromGrades(Get $get, Set $set)
+    {
+        $readings = $get('../../../calibration_data.readings') ?? [];
+        $instrumentId = $get('../../../instrument_id');
+        
+        if (!$instrumentId || empty($readings)) return;
+        
+        $instrument = \App\Models\Instrument::find($instrumentId);
+        if (!$instrument) return;
+        
+        // รวบรวม grades ทั้งหมด
         $grades = collect($readings)->pluck('grade')->filter();
         
         $level = 'A';
@@ -698,12 +767,19 @@ class CalibrationKNewResource extends Resource
                 
                 TextColumn::make('cal_level')
                     ->label('Level')
+                    ->color(fn (string $state): string => match ($state) {
+                        'A' => 'success',
+                        'B' => 'warning',
+                        'C' => 'danger',
+                        default => 'gray',
+                    })
                     ->badge(),
             ])
             ->filters([])
             ->actions([
                 Actions\ViewAction::make(),
-                Actions\EditAction::make(),
+                Actions\EditAction::make()
+                    ->color('warning'),
                 Actions\DeleteAction::make(),
             ])
             ->bulkActions([

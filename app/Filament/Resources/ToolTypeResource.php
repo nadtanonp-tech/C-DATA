@@ -288,19 +288,20 @@ class ToolTypeResource extends Resource
                                 ]),
                             ])
                             ->addActionLabel('เพิ่มฟิลด์ตรวจสอบ (+)')
-                            ->addable(fn ($livewire) => !data_get($livewire->data ?? [], 'is_snap_gauge') && !data_get($livewire->data ?? [], 'is_plug_gauge') && !data_get($livewire->data ?? [], 'is_kgauge') && !data_get($livewire->data ?? [], 'is_thread_plug_gauge') && !data_get($livewire->data ?? [], 'is_thread_ring_gauge') && !data_get($livewire->data ?? [], 'is_serration_plug_gauge') && !data_get($livewire->data ?? [], 'is_serration_ring_gauge') && !data_get($livewire->data ?? [], 'is_new_instruments_type'))
-                            ->deletable(fn ($livewire) => !data_get($livewire->data ?? [], 'is_snap_gauge') && !data_get($livewire->data ?? [], 'is_plug_gauge') && !data_get($livewire->data ?? [], 'is_kgauge') && !data_get($livewire->data ?? [], 'is_thread_plug_gauge') && !data_get($livewire->data ?? [], 'is_thread_ring_gauge') && !data_get($livewire->data ?? [], 'is_serration_plug_gauge') && !data_get($livewire->data ?? [], 'is_serration_ring_gauge') && !data_get($livewire->data ?? [], 'is_new_instruments_type'))
+                            ->addable(fn ($livewire) => !data_get($livewire->data ?? [], 'is_snap_gauge') && !data_get($livewire->data ?? [], 'is_plug_gauge') && !data_get($livewire->data ?? [], 'is_thread_plug_gauge') && !data_get($livewire->data ?? [], 'is_serration_plug_gauge') && !data_get($livewire->data ?? [], 'is_new_instruments_type') && !data_get($livewire->data ?? [], 'is_thread_ring_gauge') && !data_get($livewire->data ?? [], 'is_serration_ring_gauge'))
+                            ->deletable(fn ($livewire) => !data_get($livewire->data ?? [], 'is_snap_gauge') && !data_get($livewire->data ?? [], 'is_plug_gauge') && !data_get($livewire->data ?? [], 'is_thread_plug_gauge') && !data_get($livewire->data ?? [], 'is_serration_plug_gauge') && !data_get($livewire->data ?? [], 'is_new_instruments_type') && !data_get($livewire->data ?? [], 'is_thread_ring_gauge') && !data_get($livewire->data ?? [], 'is_serration_ring_gauge'))
                             ->grid(1) // เรียงลงมาทีละบรรทัด
                             ->defaultItems(fn ($livewire) => data_get($livewire->data ?? [], 'is_kgauge') ? 1 : (data_get($livewire->data ?? [], 'is_new_instruments_type') ? 2 : 0))
                             ->default(fn ($livewire) => match(true) {
                                 (bool) data_get($livewire->data ?? [], 'is_new_instruments_type') => [['label' => 'S'], ['label' => 'Cs']],
                                 (bool) data_get($livewire->data ?? [], 'is_kgauge') => [['label' => 'STD']],
+                                (bool) (data_get($livewire->data ?? [], 'is_thread_ring_gauge') || data_get($livewire->data ?? [], 'is_serration_ring_gauge')) => [['label' => 'วัดเกลียว']],
                                 default => null
                             })
                         ])
                         ->addActionLabel('เพิ่มตารางใหม่ (เช่น E, F...)')
-                        ->addable(fn ($livewire) => !data_get($livewire->data ?? [], 'is_snap_gauge') && !data_get($livewire->data ?? [], 'is_plug_gauge') && !data_get($livewire->data ?? [], 'is_thread_plug_gauge') && !data_get($livewire->data ?? [], 'is_thread_ring_gauge') && !data_get($livewire->data ?? [], 'is_serration_plug_gauge') && !data_get($livewire->data ?? [], 'is_serration_ring_gauge'))
-                        ->deletable(fn ($livewire) => !data_get($livewire->data ?? [], 'is_snap_gauge') && !data_get($livewire->data ?? [], 'is_plug_gauge') && !data_get($livewire->data ?? [], 'is_thread_plug_gauge') && !data_get($livewire->data ?? [], 'is_thread_ring_gauge') && !data_get($livewire->data ?? [], 'is_serration_plug_gauge') && !data_get($livewire->data ?? [], 'is_serration_ring_gauge'))
+                        ->addable(fn ($livewire) => !data_get($livewire->data ?? [], 'is_snap_gauge') && !data_get($livewire->data ?? [], 'is_plug_gauge') && !data_get($livewire->data ?? [], 'is_thread_plug_gauge') && !data_get($livewire->data ?? [], 'is_serration_plug_gauge'))
+                        ->deletable(fn ($livewire) => !data_get($livewire->data ?? [], 'is_snap_gauge') && !data_get($livewire->data ?? [], 'is_plug_gauge') && !data_get($livewire->data ?? [], 'is_thread_plug_gauge') && !data_get($livewire->data ?? [], 'is_serration_plug_gauge'))
                         ->collapsible() // ย่อเก็บได้
                         
                         // 🔥 ไฮไลท์: กำหนดค่าเริ่มต้น A, B, C, D ให้มาพร้อมเลย 🔥
@@ -340,7 +341,8 @@ class ToolTypeResource extends Resource
                 //
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->color('warning'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

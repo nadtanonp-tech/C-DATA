@@ -29,19 +29,19 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 class CalibrationThreadPlugGaugeResource extends Resource
 {
     protected static ?string $model = CalibrationRecord::class;
+    protected static ?string $slug = 'calibration-thread-plug-gauge'; // 🔥 กำหนด slug สำหรับ URL
 
-    protected static ?string $navigationLabel = 'Thread Plug Gauge';
+    protected static ?string $navigationLabel = 'Thread & Serration Plug Gauge';
     protected static ?string $navigationGroup = 'Gauge Calibration';
+    protected static ?string $modelLabel = 'Thread Plug Gauge';
     protected static ?int $navigationSort = 5;
 
     public static function getEloquentQuery(): Builder
     {
-        // 🔥 กรองเฉพาะ Thread Plug Gauge โดยใช้ code_no pattern
+        // 🔥 กรอง Thread Plug Gauge: ใช้ calibration_type ใน JSON
         return parent::getEloquentQuery()
-            ->with(['instrument.toolType']) // 🔥 แก้ N+1 Query
-            ->whereHas('instrument', function ($query) {
-                $query->where('code_no', 'LIKE', '8-04-%');
-            });
+            ->with(['instrument.toolType'])
+            ->whereRaw("calibration_data->>'calibration_type' = 'ThreadPlugGauge'");
     } 
 
     public static function form(Form $form): Form
@@ -60,9 +60,13 @@ class CalibrationThreadPlugGaugeResource extends Resource
                                     ->columnSpan(2)
                                     ->reactive()
                                     ->getSearchResultsUsing(function (string $search) {
-                                        // 🔥 ค้นหาเฉพาะ Thread Plug Gauge ที่มี code_no ขึ้นต้นด้วย "8-04-"
+                                        // 🔥 ค้นหา Thread Plug Gauge: code_no 8-04-%, 8-05-%, 8-06-%
                                         return \App\Models\Instrument::query()
-                                            ->where('code_no', 'LIKE', '8-04-%') // กรองเฉพาะ Thread Plug Gauge
+                                            ->where(function ($q) {
+                                                $q->where('code_no', 'LIKE', '8-04-%')
+                                                  ->orWhere('code_no', 'LIKE', '8-05-%')
+                                                  ->orWhere('code_no', 'LIKE', '8-06-%');
+                                            })
                                             ->where(function($q) use ($search) {
                                                 $q->where('code_no', 'like', "%{$search}%")
                                                   ->orWhere('name', 'like', "%{$search}%");
@@ -134,6 +138,8 @@ class CalibrationThreadPlugGaugeResource extends Resource
                                                 }
                                             }
                                     
+                                            // 🔥 เพิ่ม calibration_type สำหรับแยกประเภท
+                                            $set('calibration_data.calibration_type', 'ThreadPlugGauge');
                                             $set('calibration_data.readings', $readings);
                                         }
                                     }),
@@ -235,7 +241,7 @@ class CalibrationThreadPlugGaugeResource extends Resource
                     ->schema([
                         Repeater::make('calibration_data.readings')
                             ->label('รายการจุดตรวจสอบ')
-                            ->itemLabel(fn (array $state): ?string => 'Point ' . ($state['point'] ?? '?'))
+                            ->itemLabel(fn (array $state): ?string => 'Point ' . ($state['point'] ?? '?') . ' - Major - Pitch - Plug')
                             ->schema([
                                 // 🔥 Hidden fields for Point level
                                 Forms\Components\Hidden::make('point')->dehydrated(),
@@ -651,12 +657,19 @@ class CalibrationThreadPlugGaugeResource extends Resource
                 
                 TextColumn::make('cal_level')
                     ->label('Level')
+                    ->color(fn (string $state): string => match ($state) {
+                        'A' => 'success',
+                        'B' => 'warning',
+                        'C' => 'danger',
+                        default => 'gray',
+                    })
                     ->badge(),
             ])
             ->filters([])
             ->actions([
                 Actions\ViewAction::make(),
-                Actions\EditAction::make(),
+                Actions\EditAction::make()
+                    ->color('warning'),
                 Actions\DeleteAction::make(),
             ])
             ->bulkActions([

@@ -106,15 +106,37 @@ class ImportToolTypesSeeder extends Seeder
                     ];
                 }
 
+                // 🔥 เพิ่ม Logic ดึงค่า STDPartA และ STDPartB สำหรับ 'วัดเกลียว'
+                $stdPartAKey = 'STDPart' . $char; // STDPartA, STDPartB, ...
+                $stdPartAVal = $this->cleanText($oldRow->{$stdPartAKey} ?? null);
+                
+                if (!empty($stdPartAVal)) {
+                    $specsList[] = [
+                        'label'          => 'วัดเกลียว',
+                        'standard_value' => $stdPartAVal,
+                    ];
+                }
+
                 if (!empty($specsList)) {
+                    // 🔥 เช็คว่ามี specs ที่ต้องการ trend หรือไม่
+                    $needsTrend = false;
+                    $labelsWithTrend = ['STD', 'Lip', 'Major', 'Pitch', 'Plug', 'วัดเกลียว'];
+                    foreach ($specsList as $spec) {
+                        if (in_array($spec['label'] ?? '', $labelsWithTrend)) {
+                            $needsTrend = true;
+                            break;
+                        }
+                    }
+
+                    // 🔥 ถ้ามี specs ที่ต้องการ trend → ใส่ trend, ถ้าไม่มี (เช่น S, Cs) → ไม่ใส่ trend
                     $pointObj = [
                         'point' => $char,
-                        'trend' => $trend,
                         'specs' => $specsList,
                     ];
-
-                    // 🔥 Clean ค่า Null ออกจาก Object (เช่น trend: null ก็เอาออกเลย)
-                    $pointObj = array_filter($pointObj, fn($v) => !is_null($v));
+                    
+                    if ($needsTrend) {
+                        $pointObj['trend'] = $trend;
+                    }
 
                     $dimensionSpecs[] = $pointObj;
                 }

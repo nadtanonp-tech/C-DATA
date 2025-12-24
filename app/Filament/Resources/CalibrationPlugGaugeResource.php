@@ -29,9 +29,11 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 class CalibrationPlugGaugeResource extends Resource
 {
     protected static ?string $model = CalibrationRecord::class;
+    protected static ?string $slug = 'calibration-plug-gauge'; // 🔥 กำหนด slug สำหรับ URL
 
     protected static ?string $navigationLabel = 'Plug Gauge';
     protected static ?string $navigationGroup = 'Gauge Calibration';
+    protected static ?string $modelLabel = 'Plug Gauge';
     protected static ?int $navigationSort = 4;
 
     public static function getEloquentQuery(): Builder
@@ -242,7 +244,7 @@ class CalibrationPlugGaugeResource extends Resource
                     ->schema([
                         Repeater::make('calibration_data.readings')
                             ->label('รายการจุดตรวจสอบ')
-                            ->itemLabel(fn (array $state): ?string => 'Point ' . ($state['point'] ?? '?'))
+                            ->itemLabel(fn (array $state): ?string => 'Point ' . ($state['point'] ?? '?') . ' - STD')
                             ->schema([
                                 Grid::make(12)->schema([
                                     // 🔥 Hidden fields
@@ -899,12 +901,19 @@ class CalibrationPlugGaugeResource extends Resource
                 
                 TextColumn::make('cal_level')
                     ->label('Level')
+                    ->color(fn (string $state): string => match ($state) {
+                        'A' => 'success',
+                        'B' => 'warning',
+                        'C' => 'danger',
+                        default => 'gray',
+                    })
                     ->badge(),
             ])
             ->filters([])
             ->actions([
                 Actions\ViewAction::make(),
-                Actions\EditAction::make(),
+                Actions\EditAction::make()
+                    ->color('warning'),
                 Actions\DeleteAction::make(),
             ])
             ->bulkActions([

@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Filament\Resources\CalibrationThreadPlugGaugeResource\Pages;
+namespace App\Filament\Resources\CalibrationThreadRingGaugeResource\Pages;
 
-use App\Filament\Resources\CalibrationThreadPlugGaugeResource;
+use App\Filament\Resources\CalibrationThreadRingGaugeResource;
 use Filament\Actions;
 use Filament\Resources\Pages\CreateRecord;
 
-class CreateCalibrationThreadPlugGauge extends CreateRecord
+class CreateCalibrationThreadRingGauge extends CreateRecord
 {
-    protected static string $resource = CalibrationThreadPlugGaugeResource::class;
+    protected static string $resource = CalibrationThreadRingGaugeResource::class;
 
     /**
      * 🔥 Mutate data ก่อน save เพื่อให้แน่ใจว่า calibration_type ถูกตั้งค่า
@@ -19,7 +19,7 @@ class CreateCalibrationThreadPlugGauge extends CreateRecord
         if (!isset($data['calibration_data'])) {
             $data['calibration_data'] = [];
         }
-        $data['calibration_data']['calibration_type'] = 'ThreadPlugGauge';
+        $data['calibration_data']['calibration_type'] = 'ThreadRingGauge';
         
         return $data;
     }
@@ -32,3 +32,4 @@ class CreateCalibrationThreadPlugGauge extends CreateRecord
         return $this->getResource()::getUrl('view', ['record' => $this->record]);
     }
 }
+

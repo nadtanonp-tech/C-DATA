@@ -93,13 +93,14 @@ class ImportToolTypesSeeder extends Seeder
                 $sVal  = $this->cleanText($oldRow->{'S' . $charIndex}  ?? null);
                 $csVal = $this->cleanText($oldRow->{'Cs' . $charIndex} ?? null);
 
-                if (!empty($sVal)) {
+                // รวมค่า 0 ด้วย (ใช้ !== null && !== '' แทน !empty())
+                if ($sVal !== null && $sVal !== '') {
                     $specsList[] = [
                         'label'   => 'S',
                         's_std' => $sVal,
                     ];
                 }
-                if (!empty($csVal)) {
+                if ($csVal !== null && $csVal !== '') {
                     $specsList[] = [
                         'label'    => 'Cs',
                         'cs_std' => $csVal,

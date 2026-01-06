@@ -4,21 +4,21 @@ namespace App\Filament\Resources\CalibrationRecordResource\Pages;
 
 use App\Filament\Resources\CalibrationRecordResource;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use Filament\Resources\Pages\ViewRecord;
 
-class EditCalibrationRecord extends EditRecord
+class ViewCalibrationRecord extends ViewRecord
 {
     protected static string $resource = CalibrationRecordResource::class;
 
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            Actions\EditAction::make(),
         ];
     }
 
     /**
-     * 🔥 Mutate ข้อมูลก่อนแสดงในฟอร์ม (สำหรับ Edit)
+     * 🔥 Mutate ข้อมูลก่อนแสดงในฟอร์ม (สำหรับ View)
      */
     protected function mutateFormDataBeforeFill(array $data): array
     {
@@ -50,23 +50,6 @@ class EditCalibrationRecord extends EditRecord
 
         // calibration_data จะถูก cast เป็น array โดยอัตโนมัติจาก Model
         // ไม่ต้องทำอะไรเพิ่ม เพราะ Model มี protected $casts = ['calibration_data' => 'array'];
-        
-        return $data;
-    }
-
-    /**
-     * 🔥 เพิ่ม calibration_type ก่อนบันทึก (สำหรับ Edit)
-     */
-    protected function mutateFormDataBeforeSave(array $data): array
-    {
-        // เพิ่ม calibration_type ใน calibration_data
-        if (isset($data['calibration_data'])) {
-            $data['calibration_data']['calibration_type'] = 'VernierCaliperDigital';
-        } else {
-            $data['calibration_data'] = [
-                'calibration_type' => 'VernierCaliperDigital',
-            ];
-        }
         
         return $data;
     }

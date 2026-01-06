@@ -26,7 +26,7 @@ class ToolTypeResource extends Resource
     protected static ?string $model = ToolType::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-tag'; // ไอคอนป้ายแท็ก
-    protected static ?string $navigationGroup = 'Instrument Data'; // จัดกลุ่มเมนู
+    protected static ?string $navigationGroup = 'Instrument & Types Data'; // จัดกลุ่มเมนู
     protected static ?string $navigationLabel = 'ประเภทเครื่องมือ (Types)';
     public static function form(Form $form): Form
     {

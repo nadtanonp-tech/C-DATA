@@ -13,7 +13,11 @@ class ListCalibrationSnapGauges extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            Actions\CreateAction::make()
+            ->label('New Snap Gauge Calibration')
+            ->icon('heroicon-o-plus')
+            ->button()
+            ->color('primary'),
         ];
     }
 }

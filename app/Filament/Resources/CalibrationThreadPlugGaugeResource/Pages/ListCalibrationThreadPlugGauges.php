@@ -13,7 +13,11 @@ class ListCalibrationThreadPlugGauges extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            Actions\CreateAction::make()
+            ->label('New Thread Plug Gauge Calibration')
+            ->icon('heroicon-o-plus')
+            ->button()
+            ->color('primary'),
         ];
     }
 }

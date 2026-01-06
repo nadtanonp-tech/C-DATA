@@ -32,9 +32,9 @@ class CalibrationKNewResource extends Resource
     protected static ?string $slug = 'calibration-k-gauge'; // 🔥 กำหนด slug สำหรับ URL
 
     protected static ?string $navigationLabel = 'K-Gauge';
-    protected static ?string $navigationGroup = 'Gauge Calibration';
+    protected static ?string $navigationGroup = 'Gauge Cal Report & Data';
     protected static ?string $modelLabel = 'K-Gauge';
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 1;
 
     public static function getEloquentQuery(): Builder
     {

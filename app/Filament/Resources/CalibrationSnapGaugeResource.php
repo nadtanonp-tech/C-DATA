@@ -32,9 +32,9 @@ class CalibrationSnapGaugeResource extends Resource
     protected static ?string $slug = 'calibration-snap-gauge'; // 🔥 กำหนด slug สำหรับ URL
 
     protected static ?string $navigationLabel = 'Snap Gauge';
-    protected static ?string $navigationGroup = 'Gauge Calibration';
+    protected static ?string $navigationGroup = 'Gauge Cal Report & Data';
     protected static ?string $modelLabel = 'Snap Gauge';
-    protected static ?int $navigationSort = 3;
+    protected static ?int $navigationSort = 2;
 
     public static function getEloquentQuery(): Builder
     {

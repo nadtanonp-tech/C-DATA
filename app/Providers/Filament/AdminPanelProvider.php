@@ -31,11 +31,16 @@ class AdminPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::hex('#1a3e6c'),
             ])
-            ->brandName('CalibrationSystem')
+            ->brandName('CalibrationDatabase')
             ->brandLogo(asset('apple-touch-logo12.png'))
             ->darkModeBrandLogo(asset('apple-touch-logo12.png'))
             ->brandLogoHeight('4.6rem')
             ->favicon(asset('favicon.ico'))
+            ->navigationGroups([
+                'Instrument & Types Data',
+                'Gauge Calibration',
+                'Instrument Calibration',
+            ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([

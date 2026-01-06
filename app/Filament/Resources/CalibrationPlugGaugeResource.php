@@ -32,9 +32,9 @@ class CalibrationPlugGaugeResource extends Resource
     protected static ?string $slug = 'calibration-plug-gauge'; // 🔥 กำหนด slug สำหรับ URL
 
     protected static ?string $navigationLabel = 'Plug Gauge';
-    protected static ?string $navigationGroup = 'Gauge Calibration';
+    protected static ?string $navigationGroup = 'Gauge Cal Report & Data';
     protected static ?string $modelLabel = 'Plug Gauge';
-    protected static ?int $navigationSort = 4;
+    protected static ?int $navigationSort = 3;
 
     public static function getEloquentQuery(): Builder
     {

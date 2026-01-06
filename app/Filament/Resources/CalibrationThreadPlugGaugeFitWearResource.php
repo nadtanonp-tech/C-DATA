@@ -2,8 +2,8 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\CalibrationThreadPlugGaugeResource\Pages;
-use App\Filament\Resources\CalibrationThreadPlugGaugeResource\RelationManagers;
+use App\Filament\Resources\CalibrationThreadPlugGaugeFitWearResource\Pages;
+use App\Filament\Resources\CalibrationThreadPlugGaugeFitWearResource\RelationManagers;
 use App\Models\CalibrationRecord;
 use App\Models\Instrument;
 use App\Models\Master;
@@ -26,22 +26,22 @@ use Filament\Tables\Actions;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
-class CalibrationThreadPlugGaugeResource extends Resource
+class CalibrationThreadPlugGaugeFitWearResource extends Resource
 {
     protected static ?string $model = CalibrationRecord::class;
-    protected static ?string $slug = 'calibration-thread-plug-gauge'; // 🔥 กำหนด slug สำหรับ URL
+    protected static ?string $slug = 'calibration-thread-plug-gauge-fit-wear'; // 🔥 กำหนด slug สำหรับ URL
 
-    protected static ?string $navigationLabel = 'Thread & Serration Plug Gauge';
+    protected static ?string $navigationLabel = 'Plug Gauge (Fit/Wear)';
     protected static ?string $navigationGroup = 'Gauge Cal Report & Data';
-    protected static ?string $modelLabel = 'Thread Plug Gauge';
-    protected static ?int $navigationSort = 4;
+    protected static ?string $modelLabel = 'Plug Gauge (Fit/Wear)';
+    protected static ?int $navigationSort = 6;
 
     public static function getEloquentQuery(): Builder
     {
-        // 🔥 กรอง Thread Plug Gauge: ใช้ calibration_type ใน JSON
+        // 🔥 กรอง Thread Plug Gauge Fit Wear: ใช้ calibration_type ใน JSON
         return parent::getEloquentQuery()
             ->with(['instrument.toolType'])
-            ->whereRaw("calibration_data->>'calibration_type' = 'ThreadPlugGauge'");
+            ->whereRaw("calibration_data->>'calibration_type' = 'ThreadPlugGaugeFitWear'");
     } 
 
     public static function form(Form $form): Form
@@ -60,12 +60,13 @@ class CalibrationThreadPlugGaugeResource extends Resource
                                     ->columnSpan(2)
                                     ->reactive()
                                     ->getSearchResultsUsing(function (string $search) {
-                                        // 🔥 ค้นหา Thread Plug Gauge: code_no 8-04-%, 8-05-%, 8-06-%
+                                        // 🔥 ค้นหา Thread Plug Gauge Fit Wear: code_no 5-08-%, 5-09-%, 8-08-%, 8-09-%
                                         return \App\Models\Instrument::query()
                                             ->where(function ($q) {
-                                                $q->where('code_no', 'LIKE', '8-04-%')
-                                                  ->orWhere('code_no', 'LIKE', '8-05-%')
-                                                  ->orWhere('code_no', 'LIKE', '8-06-%');
+                                                $q->where('code_no', 'LIKE', '5-08-%')
+                                                  ->orWhere('code_no', 'LIKE', '5-09-%')
+                                                  ->orWhere('code_no', 'LIKE', '8-08-%')
+                                                  ->orWhere('code_no', 'LIKE', '8-09-%');
                                             })
                                             ->where(function($q) use ($search) {
                                                 $q->where('code_no', 'like', "%{$search}%")
@@ -139,7 +140,7 @@ class CalibrationThreadPlugGaugeResource extends Resource
                                             }
                                     
                                             // 🔥 เพิ่ม calibration_type สำหรับแยกประเภท
-                                            $set('calibration_data.calibration_type', 'ThreadPlugGauge');
+                                            $set('calibration_data.calibration_type', 'ThreadPlugGaugeFitWear');
                                             $set('calibration_data.readings', $readings);
                                         }
                                     }),
@@ -237,7 +238,7 @@ class CalibrationThreadPlugGaugeResource extends Resource
                     ]),
 
                 Section::make('ผลการวัด (Measurement Results)')
-                    ->description('กรอกค่าตามจุดตรวจสอบ - Thread Plug Gauge รวม Major, Pitch, Plug ไว้ในแต่ละ Point')
+                    ->description('กรอกค่าตามจุดตรวจสอบ - Thread Plug Gauge Fit Wear รวม Major, Pitch, Plug ไว้ในแต่ละ Point')
                     ->schema([
                         Repeater::make('calibration_data.readings')
                             ->label('รายการจุดตรวจสอบ')
@@ -687,10 +688,10 @@ class CalibrationThreadPlugGaugeResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListCalibrationThreadPlugGauges::route('/'),
-            'create' => Pages\CreateCalibrationThreadPlugGauge::route('/create'),
-            'view' => Pages\ViewCalibrationThreadPlugGauge::route('/{record}'),
-            'edit' => Pages\EditCalibrationThreadPlugGauge::route('/{record}/edit'),
+            'index' => Pages\ListCalibrationThreadPlugGaugeFitWears::route('/'),
+            'create' => Pages\CreateCalibrationThreadPlugGaugeFitWear::route('/create'),
+            'view' => Pages\ViewCalibrationThreadPlugGaugeFitWear::route('/{record}'),
+            'edit' => Pages\EditCalibrationThreadPlugGaugeFitWear::route('/{record}/edit'),
         ];
     }
 }

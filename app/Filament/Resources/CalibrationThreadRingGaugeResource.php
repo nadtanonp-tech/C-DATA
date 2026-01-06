@@ -29,9 +29,9 @@ class CalibrationThreadRingGaugeResource extends Resource
     protected static ?string $model = CalibrationRecord::class;
     protected static ?string $slug = 'calibration-thread-ring-gauge'; // 🔥 กำหนด slug สำหรับ URL
     protected static ?string $navigationLabel = 'Thread & Serration Ring Gauge';
-    protected static ?string $navigationGroup = 'Gauge Calibration';
+    protected static ?string $navigationGroup = 'Gauge Cal Report & Data';
     protected static ?string $modelLabel = 'Thread & Serration Ring Gauge';
-    protected static ?int $navigationSort = 6;
+    protected static ?int $navigationSort = 5;
 
     public static function getEloquentQuery(): Builder
     {

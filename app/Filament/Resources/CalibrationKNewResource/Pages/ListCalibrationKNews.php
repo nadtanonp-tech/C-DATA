@@ -13,7 +13,11 @@ class ListCalibrationKNews extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            Actions\CreateAction::make()
+            ->label('New K-Gauge Calibration')
+            ->icon('heroicon-o-plus')
+            ->button()
+            ->color('primary'),
         ];
     }
 }

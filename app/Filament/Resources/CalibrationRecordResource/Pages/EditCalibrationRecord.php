@@ -55,18 +55,12 @@ class EditCalibrationRecord extends EditRecord
     }
 
     /**
-     * 🔥 เพิ่ม calibration_type ก่อนบันทึก (สำหรับ Edit)
+     * 🔥 รักษา calibration_type เดิมก่อนบันทึก (สำหรับ Edit)
      */
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        // เพิ่ม calibration_type ใน calibration_data
-        if (isset($data['calibration_data'])) {
-            $data['calibration_data']['calibration_type'] = 'VernierCaliperDigital';
-        } else {
-            $data['calibration_data'] = [
-                'calibration_type' => 'VernierCaliperDigital',
-            ];
-        }
+        // calibration_type จะถูกเก็บไว้ใน calibration_data อยู่แล้ว
+        // ไม่ต้อง override เพราะจะใช้ค่าเดิมจากข้อมูลที่โหลดมา
         
         return $data;
     }

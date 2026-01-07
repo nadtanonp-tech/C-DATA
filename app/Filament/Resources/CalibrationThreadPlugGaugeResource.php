@@ -626,6 +626,8 @@ class CalibrationThreadPlugGaugeResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->defaultPaginationPageOption(10)
+            ->paginationPageOptions([10, 25])
             ->columns([
                 TextColumn::make('instrument.code_no')
                     ->label('ID Code Instrument')

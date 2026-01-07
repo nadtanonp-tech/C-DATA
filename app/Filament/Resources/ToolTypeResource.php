@@ -313,6 +313,8 @@ class ToolTypeResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->defaultPaginationPageOption(10)
+            ->paginationPageOptions([10, 25])
             ->columns([
                 TextColumn::make('code_type')
                     ->label('ID Code Type')

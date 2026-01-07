@@ -19,17 +19,17 @@ class CreateCalibrationRecord extends CreateRecord
     }
 
     /**
-     * 🔥 เพิ่ม calibration_type ก่อนบันทึก
+     * 🔥 รักษา calibration_type จาก form data (Hidden field)
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        // เพิ่ม calibration_type ใน calibration_data
-        if (isset($data['calibration_data'])) {
-            $data['calibration_data']['calibration_type'] = 'VernierCaliperDigital';
-        } else {
-            $data['calibration_data'] = [
-                'calibration_type' => 'VernierCaliperDigital',
-            ];
+        // calibration_type ถูก set ใน Hidden field แล้ว
+        // ใช้ค่าจาก form data แทน request parameter
+        // เพราะ request()->get('type') อาจหายไปตอน submit form
+        
+        // ถ้าไม่มี calibration_type ให้ fallback เป็น VernierOther
+        if (!isset($data['calibration_data']['calibration_type']) || empty($data['calibration_data']['calibration_type'])) {
+            $data['calibration_data']['calibration_type'] = 'VernierOther';
         }
         
         return $data;

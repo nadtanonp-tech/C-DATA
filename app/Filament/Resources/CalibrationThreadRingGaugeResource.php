@@ -166,7 +166,7 @@ class CalibrationThreadRingGaugeResource extends Resource
                                     ->disabled()
                                     ->dehydrated(false),
                             ]),
-                            Grid::make(2)->schema([
+                            Grid::make(3)->schema([
                                 TextInput::make('environment.temperature')
                                     ->label('อุณหภูมิ (°C)')
                                     ->numeric()
@@ -175,6 +175,7 @@ class CalibrationThreadRingGaugeResource extends Resource
                                     ->label('ความชื้น (%)')
                                     ->numeric()
                                     ->default(null),
+                                    
                             ]),
                         ])
                         ->columnSpan(1),
@@ -376,6 +377,8 @@ class CalibrationThreadRingGaugeResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->defaultPaginationPageOption(10)
+            ->paginationPageOptions([10, 25])
             ->columns([
                 TextColumn::make('instrument.code_no')
                     ->label('ID Code Instrument')

@@ -116,8 +116,8 @@ class ImportInstrumentsSeeder extends Seeder
                     'cal_place'       => $this->mapPlaceCal($oldRow->PlaceCAL),
                     'range_spec'      => $this->cleanText($oldRow->Range),
                     'percent_adj'     => $this->cleanText($oldRow->PercentAdj),
-                    'criteria_1'      => isset($oldRow->Criteria_1) ? (float) $oldRow->Criteria_1 : null,
-                    'criteria_2'      => isset($oldRow->Criteria1_1) ? (float) $oldRow->Criteria1_1 : null,
+                    // 🔥 ดึง criteria_unit ตามเงื่อนไข
+                    'criteria_unit'   => $this->getCriteriaUnit($oldRow, $codeNo),
                     'reference_doc'   => $this->cleanText($oldRow->Reference),
                     'status'          => $this->mapStatus($oldRow->Status),
                     'price'           => $price,
@@ -129,5 +129,54 @@ class ImportInstrumentsSeeder extends Seeder
         }
         // หมายเหตุ: เมื่อใช้ updateOrInsert เราจะไม่ใช้ Batch Insert ($batchData) นะครับ
         // เพราะมันต้องเช็คทีละแถว ทำให้ช้ากว่านิดหน่อย แต่ปลอดภัยกว่าครับ
+    }
+
+    /**
+     * 🔥 ดึง criteria_unit ตามเงื่อนไข:
+     * - 8-18-*: ดึงจาก DataRecord.Criteria_1 และ Criteria1_1
+     * - รหัสอื่นๆ: ดึงจาก Type table (CriteriaX, CriteriaX-X, UnitX)
+     */
+    private function getCriteriaUnit($oldRow, string $codeNo): ?string
+    {
+        $criteria1 = null;
+        $criteria2 = null;
+        $unit = 'mm.';
+
+        // เช็คว่าเป็น 8-18-* หรือไม่
+        if (str_starts_with($codeNo, '8-18-')) {
+            // ดึงจาก DataRecord
+            $criteria1 = $this->cleanText($oldRow->Criteria_1 ?? null);
+            $criteria2 = $this->cleanText($oldRow->Criteria1_1 ?? null);
+            $unit = '%F.S';
+        } else {
+            // ดึงจาก Type table โดยใช้ Name (code_type)
+            $typeName = $this->cleanText($oldRow->Name ?? null);
+            if ($typeName) {
+                $typeRow = DB::table('Type')
+                    ->where('CodeType', $typeName)
+                    ->first();
+                
+                if ($typeRow) {
+                    // ดึง Criteria1, Criteria1-1, Unit1 (index แรก)
+                    $criteria1 = $this->cleanText($typeRow->Criteria1 ?? null);
+                    $criteria2 = $this->cleanText($typeRow->{'Criteria1-1'} ?? null);
+                    $unit = $this->cleanText($typeRow->Unit1 ?? null) ?: 'mm.';
+                }
+            }
+        }
+
+        // ถ้าไม่มี criteria ให้ return null
+        if ($criteria1 === null && $criteria2 === null) {
+            return null;
+        }
+
+        return json_encode([
+            [
+                'index'      => 1,
+                'criteria_1' => $criteria1,
+                'criteria_2' => $criteria2,
+                'unit'       => $unit,
+            ]
+        ], JSON_UNESCAPED_UNICODE);
     }
 }

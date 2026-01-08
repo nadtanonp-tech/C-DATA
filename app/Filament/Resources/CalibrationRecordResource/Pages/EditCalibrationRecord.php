@@ -33,8 +33,8 @@ class EditCalibrationRecord extends EditRecord
                 $data['instrument_serial'] = $instrument->serial_no ?? '-';
                 $data['instrument_drawing'] = $instrument->toolType?->drawing_no ?? '-';
                 
-                // โหลด criteria จาก ToolType
-                $criteriaUnit = $instrument->toolType?->criteria_unit ?? [];
+                // 🔥 โหลด criteria จาก Instrument แทน ToolType
+                $criteriaUnit = $instrument->criteria_unit ?? [];
                 if (is_array($criteriaUnit)) {
                     foreach ($criteriaUnit as $item) {
                         if (($item['index'] ?? 0) == 1) {

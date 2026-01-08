@@ -3,11 +3,12 @@
         <table class="w-full text-sm">
             <thead class="bg-gray-50 dark:bg-gray-800 sticky top-0">
                 <tr>
-                    <th class="px-4 py-2 text-left font-semibold text-gray-700 dark:text-white">รหัส Master</th>
-                    <th class="px-4 py-2 text-left font-semibold text-gray-700 dark:text-white">ชื่อเครื่องมือ</th>
-                    <th class="px-4 py-2 text-left font-semibold text-gray-700 dark:text-white">ขนาด</th>
-                    <th class="px-4 py-2 text-left font-semibold text-gray-700 dark:text-white">ตรวจสอบจุด</th>
-                    <th class="px-4 py-2 text-left font-semibold text-gray-700 dark:text-white">Cal Status</th>
+                    <th class="px-4 py-2 text-left font-semibold text-gray-700 dark:text-white">Code No Master</th>
+                    <th class="px-4 py-2 text-left font-semibold text-gray-700 dark:text-white">Name</th>
+                    <th class="px-4 py-2 text-left font-semibold text-gray-700 dark:text-white">Size</th>
+                    <th class="px-4 py-2 text-left font-semibold text-gray-700 dark:text-white">Serial No.</th>
+                    <th class="px-4 py-2 text-left font-semibold text-gray-700 dark:text-white">Point</th>
+                    <th class="px-4 py-2 text-left font-semibold text-gray-700 dark:text-white">สภาพของ Master</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -21,6 +22,9 @@
                         </td>
                         <td class="px-4 py-3 text-gray-700 dark:text-gray-200">
                             {{ $master->size ?? '-' }}
+                        </td>
+                        <td class="px-4 py-3 text-gray-700 dark:text-gray-200">
+                            {{ $master->serial_no ?? '-' }}
                         </td>
                         <td class="px-4 py-3">
                             @if($master->pivot && $master->pivot->check_point)

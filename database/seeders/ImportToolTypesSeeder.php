@@ -211,55 +211,56 @@ class ImportToolTypesSeeder extends Seeder
                 $this->command->info("Checking... {$processed}/{$total}");
             }
 
+            // ค้นหา DataRecord โดยใช้ Name = code_type และ CodeNo ขึ้นต้นด้วย 8-18-
+            $codeType = trim($toolType->code_type ?? '');
+            
+            // สำหรับ 8-18-*: search DataRecord ที่มี Name = code_type AND CodeNo ขึ้นต้นด้วย 8-18-
             $dataRecord = DB::table('DataRecord')
-                ->where('Name', $toolType->code_type)
+                ->where('Name', $codeType)
+                ->where('CodeNo', 'LIKE', '8-18-%')
                 ->first();
 
             if ($dataRecord) {
-                // Condition: Check if Type is 'Pressure Gauge'
-                $recordType = trim($dataRecord->Type ?? '');
+                $recordCodeNo = trim($dataRecord->CodeNo ?? '');
                 
-                // ใช้การเช็คแบบ Loose หน่อยเผื่อมีเว้นวรรค หรือ Case sensitive
-                if (stripos($recordType, 'Pressure Gauge') !== false) {
-                    
-                    $c1 = $this->cleanText($dataRecord->Criteria_1 ?? null);
-                    $c2 = $this->cleanText($dataRecord->Criteria1_1 ?? null);
+                // ใช้ criteria จาก DataRecord
+                $c1 = $this->cleanText($dataRecord->Criteria_1 ?? null);
+                $c2 = $this->cleanText($dataRecord->Criteria1_1 ?? null);
 
-                    // Logic เดิม: Merge into Index 1
-                    $existingData = $toolType->criteria_unit;
-                    if (!is_array($existingData)) {
-                        $existingData = [];
-                    }
-
-                    $foundIndex1 = false;
-                    foreach ($existingData as &$item) {
-                        if (isset($item['index']) && $item['index'] == 1) {
-                            $item['criteria_1'] = $c1; // ใส่เลย ไม่ต้องเช็ค 0
-                            $item['criteria_2'] = $c2;
-                            if (empty($item['unit'])) $item['unit'] = '%F.S'; 
-                            $foundIndex1 = true;
-                            break;
-                        }
-                    }
-                    unset($item);
-
-                    if (!$foundIndex1) {
-                        $existingData[] = [
-                            'index'       => 1,
-                            'range'       => null, 
-                            'criteria_1'  => $c1,
-                            'criteria_2'  => $c2,
-                            'unit'        => '%F.S',  
-                        ];
-                    }
-
-                    $toolType->update([
-                        'criteria_unit' => $existingData, 
-                    ]);
-
-                    $updated++;
-                    $this->command->info("✅ Updated (Pressure Gauge): {$toolType->code_type}");
+                // Logic เดิม: Merge into Index 1
+                $existingData = $toolType->criteria_unit;
+                if (!is_array($existingData)) {
+                    $existingData = [];
                 }
+
+                $foundIndex1 = false;
+                foreach ($existingData as &$item) {
+                    if (isset($item['index']) && $item['index'] == 1) {
+                        $item['criteria_1'] = $c1;
+                        $item['criteria_2'] = $c2;
+                        if (empty($item['unit'])) $item['unit'] = '%F.S'; 
+                        $foundIndex1 = true;
+                        break;
+                    }
+                }
+                unset($item);
+
+                if (!$foundIndex1) {
+                    $existingData[] = [
+                        'index'       => 1,
+                        'range'       => null, 
+                        'criteria_1'  => $c1,
+                        'criteria_2'  => $c2,
+                        'unit'        => '%F.S',  
+                    ];
+                }
+
+                $toolType->update([
+                    'criteria_unit' => $existingData, 
+                ]);
+
+                $updated++;
+                $this->command->info("✅ Updated (8-18-*): {$toolType->code_type} | CodeNo: {$recordCodeNo} | Criteria: {$c1}, {$c2}");
             }
         }
         $this->command->info("🎉 Finished! Checked: {$processed}, Updated: {$updated}");

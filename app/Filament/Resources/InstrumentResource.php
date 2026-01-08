@@ -154,7 +154,7 @@ class InstrumentResource extends Resource
                 // --- ส่วนที่ 3: การสอบเทียบ (Calibration Info) ---
                 Section::make('ข้อมูลการสอบเทียบ (Calibration Details)')
                     ->schema([
-                        Grid::make(6)->schema([
+                        Grid::make(10)->schema([
                             Select::make('cal_place')
                                 ->label('สถานที่สอบเทียบ')
                                 ->options([
@@ -165,10 +165,12 @@ class InstrumentResource extends Resource
                                 ->columnSpan(2)
                                 ->native(false)
                                 ->required(),
+                            
 
                             TextInput::make('cal_freq_months')
                                 ->label('ความถี่ (เดือน)')
                                 ->numeric()
+                                ->columnSpan(2)
                                 ->default(12)
                                 ->suffix('เดือน')
                                 ->required(),
@@ -176,48 +178,53 @@ class InstrumentResource extends Resource
                             // ฟิลด์นี้อาจคำนวณอัตโนมัติในอนาคต แต่ตอนนี้ให้กรอกได้ก่อน
                             DatePicker::make('next_cal_date')
                                 ->label('วันครบกำหนด (Due Date)')
+                                ->columnSpan(2)
                                 ->displayFormat('d/m/Y') // แสดงผลแบบไทยๆ
                                 ->native(false), // ใช้ Datepicker สวยๆ ของ Filament
 
                             TextInput::make('range_spec')
+                                ->columnSpan(2)
                                 ->label('การใช้งาน (Range)'),
-                            
-                            TextInput::make('reference_doc')
-                                ->label('Reference Pressure'),
-                        ]),
 
-                        Grid::make(7)->schema([
-                            
                             TextInput::make('percent_adj')
-                                ->label('เกณฑ์ในการตัดเกรด (Percent Adjust)')
+                                ->label('เกณฑ์ตัดเกรด (% Adjust)')
                                 ->numeric()
-                                ->columnSpan(2)
                                 ->default(10)
-                                ->suffix('%'),
-
-                            TextInput::make('criteria_1')
-                                ->label('เกณฑ์ในการยอมรับค่าบวก (Criteria 1)')
-                                ->numeric()
-                                ->columnSpan(2)
-                                ->minValue(0)
-                                ->suffix(fn (Forms\Get $get) => $get('criteria_unit') ?? '%F.S')
-                                ->helperText(new \Illuminate\Support\HtmlString('<span style="color: red;">หมายเหตุ: Criteria ใช้คํานวณ Gauge เท่านั้น</span>'))
-                                ->default('0.00'),
-
-                            TextInput::make('criteria_2')
-                                ->label('เกณฑ์ในการยอมรับค่าลบ (Criteria 2)')
-                                ->numeric()
-                                ->columnSpan(2)
-                                ->maxValue(0) // เปลี่ยนเป็น 0 (เพราะเป็นค่าลบ) หรือ -9999 แล้วแต่ logic
-                                ->suffix(fn (Forms\Get $get) => $get('criteria_unit') ?? '%F.S')
-                                ->default('-0.00'),
-
-                            // เพิ่มตัวเลือกหน่วย (Unit)
-                            TextInput::make('criteria_unit')
-                                ->label('หน่วย (Unit)')
-                                ->default('%F.S')
-                                ->live() // ให้ทำงานทันทีเพื่อเปลี่ยน suffix
-                                ->required()            
+                                ->suffix('%')
+                                ->columnSpan(2),
+                            
+                            ]),
+                        Grid::make(10)->schema([
+                            
+                            Repeater::make('criteria_unit')
+                                ->label('เกณฑ์การยอมรับ (Criteria)')
+                                ->schema([
+                                    TextInput::make('criteria_1')
+                                        ->hiddenLabel()
+                                        ->placeholder('Criteria บวก (+)')
+                                        ->default('0.00'),
+                                    TextInput::make('criteria_2')
+                                        ->hiddenLabel()
+                                        ->placeholder('Criteria ลบ (-)')
+                                        ->default('-0.00'),
+                                    TextInput::make('unit')
+                                        ->hiddenLabel()
+                                        ->placeholder('หน่วย')
+                                        ->default('%F.S'),
+                                ])
+                                ->columns(3)
+                                ->default([
+                                    ['criteria_1' => '0.00', 'criteria_2' => '-0.00', 'unit' => '%F.S']
+                                ])
+                                ->maxItems(1)
+                                ->addable(false)
+                                ->deletable(false)
+                                ->reorderable(false)
+                                ->columnSpan(4),
+                            
+                            Textarea::make('reference_doc')
+                                ->label('Reference Pressure')
+                                ->columnSpan(6),
                         ]),
                     ]),
 

@@ -84,6 +84,11 @@ class ListCalibrationRecords extends ListRecords
                     ->label('Chamfer Gauge')
                     ->icon('heroicon-o-plus-circle')
                     ->url(fn () => CalibrationRecordResource::getUrl('create', ['type' => 'chamfer_gauge'])),
+
+                Actions\CreateAction::make('create_pressure_gauge')
+                    ->label('Pressure Gauge')
+                    ->icon('heroicon-o-plus-circle')
+                    ->url(fn () => CalibrationRecordResource::getUrl('create', ['type' => 'pressure_gauge'])),
             ])
             ->label('New Instrument Calibration')
             ->icon('heroicon-o-plus')

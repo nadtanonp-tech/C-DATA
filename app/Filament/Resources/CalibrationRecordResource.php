@@ -545,23 +545,45 @@ class CalibrationRecordResource extends Resource
                     'C' => 'background-color: #fee2e2 !important; color: #991b1b !important; font-weight: bold !important; border: 2px solid #fca5a5 !important;',
                     default => ''
                 }]),
-            DatePicker::make('next_cal_date')->label('วันครบกำหนดครั้งถัดไป (Next Cal)')->dehydrated()->required()->live()
+            DatePicker::make('next_cal_date')
+                ->label('วันครบกำหนดครั้งถัดไป (Next Cal)')
+                ->dehydrated()
+                // 🔥 ซ่อนและไม่บังคับถ้าเป็น Reject หรือ Level C
+                ->visible(fn (Get $get) => $get('result_status') !== 'Reject' && $get('cal_level') !== 'C')
+                ->required(fn (Get $get) => $get('result_status') !== 'Reject' && $get('cal_level') !== 'C')
+                ->live()
                 ->afterStateUpdated(function ($state, Get $get) {
+                    // คำนวณความถี่จาก cal_date และ next_cal_date
                     $calDate = $get('cal_date');
                     $instrumentId = $get('instrument_id');
+                    
                     if (!$calDate || !$state || !$instrumentId) return;
+                    
                     $instrument = \App\Models\Instrument::find($instrumentId);
                     if (!$instrument) return;
-                    if (empty($instrument->cal_freq_months) || $instrument->cal_freq_months == 0) {
-                        $diffMonths = (int) round(\Carbon\Carbon::parse($calDate)->diffInMonths(\Carbon\Carbon::parse($state)));
-                        if ($diffMonths > 0) {
-                            $instrument->update(['cal_freq_months' => $diffMonths]);
-                            \Filament\Notifications\Notification::make()->title('อัปเดตความถี่สำเร็จ')
-                                ->body("บันทึกความถี่ {$diffMonths} เดือน ให้กับ {$instrument->code_no}")->success()->send();
-                        }
+                    
+                    // 🔥 คำนวณและ save ทุกครั้ง (ไม่ว่าจะมีค่าอยู่แล้วหรือไม่)
+                    $calDateCarbon = \Carbon\Carbon::parse($calDate);
+                    $nextDateCarbon = \Carbon\Carbon::parse($state);
+                    
+                    // คำนวณจำนวนเดือนที่ต่างกัน (ใช้ floor เพื่อปัดลง เช่น 12.7 → 12)
+                    $diffMonths = (int) floor($calDateCarbon->floatDiffInMonths($nextDateCarbon));
+                    
+                    if ($diffMonths > 0 && $diffMonths !== $instrument->cal_freq_months) {
+                        $oldFreq = $instrument->cal_freq_months ?? 0;
+                        $instrument->update(['cal_freq_months' => $diffMonths]);
+                        
+                        \Filament\Notifications\Notification::make()
+                            ->title('อัปเดตความถี่สำเร็จ')
+                            ->body("เปลี่ยนความถี่ {$oldFreq} → {$diffMonths} เดือน สำหรับ {$instrument->code_no}")
+                            ->success()
+                            ->send();
                     }
                 }),
-            TextInput::make('remark')->label('หมายเหตุ (Remark)'),
+            TextInput::make('remark')
+                ->label('หมายเหตุ (Remark)')
+                // 🔥 ขยายเป็น 2 columns เมื่อ next_cal_date หายไป (Reject/Level C)
+                ->columnSpan(fn (Get $get) => ($get('result_status') === 'Reject' || $get('cal_level') === 'C') ? 2 : 1),
         ]);
     }
 
@@ -824,6 +846,29 @@ class CalibrationRecordResource extends Resource
         }
     }
 
+    // 🔥 อัปเดต Next Cal Date ตาม Level (เหมือน CalibrationKNewResource)
+    protected static function updateNextCalDate(Set $set, Get $get, string $level, string $basePath = ''): void
+    {
+        $calDate = $get($basePath . 'cal_date');
+        $instrumentId = $get($basePath . 'instrument_id');
+        
+        if (!$calDate || !$instrumentId) return;
+        
+        $instrument = \App\Models\Instrument::find($instrumentId);
+        if (!$instrument) return;
+        
+        $nextDate = match($level) {
+            'A' => \Carbon\Carbon::parse($calDate)->addMonths($instrument->cal_freq_months ?? 12)->endOfMonth(),
+            'B' => \Carbon\Carbon::parse($calDate)->addMonth()->endOfMonth(),
+            'C' => null,
+            default => \Carbon\Carbon::parse($calDate)->addMonths($instrument->cal_freq_months ?? 12)->endOfMonth(),
+        };
+        
+        if ($nextDate) {
+            $set($basePath . 'next_cal_date', $nextDate->format('Y-m-d'));
+        }
+    }
+
     protected static function calculateParallelism(Get $get, Set $set): void
     {
         $parallelism = $get('parallelism');
@@ -866,24 +911,6 @@ class CalibrationRecordResource extends Resource
         }
         
         self::collectAllLevelsAndUpdate($get, $set, $basePath, []);
-    }
-
-    protected static function updateNextCalDate(Set $set, Get $get, string $level): void
-    {
-        $calDate = $get('cal_date'); $instrumentId = $get('instrument_id');
-        if (!$calDate || !$instrumentId) return;
-        
-        $instrument = \App\Models\Instrument::find($instrumentId);
-        if (!$instrument) return;
-        
-        $nextDate = match($level) {
-            'A' => \Carbon\Carbon::parse($calDate)->addMonths($instrument->cal_freq_months ?? 12)->endOfMonth(),
-            'B' => \Carbon\Carbon::parse($calDate)->addMonth()->endOfMonth(),
-            'C' => null,
-            default => \Carbon\Carbon::parse($calDate)->addMonths($instrument->cal_freq_months ?? 12)->endOfMonth(),
-        };
-        
-        if ($nextDate) $set('next_cal_date', $nextDate->format('Y-m-d'));
     }
 
     // ============ TABLE & PAGES ============

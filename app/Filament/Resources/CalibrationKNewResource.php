@@ -419,7 +419,9 @@ class CalibrationKNewResource extends Resource
                             DatePicker::make('next_cal_date')
                                 ->label('วันครบกำหนดครั้งถัดไป (Next Cal)')
                                 ->dehydrated()
-                                ->required()
+                                // 🔥 ซ่อนและไม่บังคับถ้าเป็น Reject หรือ Level C
+                                ->visible(fn (Get $get) => $get('result_status') !== 'Reject' && $get('cal_level') !== 'C')
+                                ->required(fn (Get $get) => $get('result_status') !== 'Reject' && $get('cal_level') !== 'C')
                                 ->live()
                                 ->afterStateUpdated(function ($state, Get $get) {
                                     // คำนวณความถี่จาก cal_date และ next_cal_date
@@ -431,28 +433,29 @@ class CalibrationKNewResource extends Resource
                                     $instrument = \App\Models\Instrument::find($instrumentId);
                                     if (!$instrument) return;
                                     
-                                    // ถ้า Instrument ยังไม่มี cal_freq_months → คำนวณและ save
-                                    if (empty($instrument->cal_freq_months) || $instrument->cal_freq_months == 0) {
-                                        $calDateCarbon = \Carbon\Carbon::parse($calDate);
-                                        $nextDateCarbon = \Carbon\Carbon::parse($state);
+                                    // 🔥 คำนวณและ save ทุกครั้ง
+                                    $calDateCarbon = \Carbon\Carbon::parse($calDate);
+                                    $nextDateCarbon = \Carbon\Carbon::parse($state);
+                                    
+                                    // คำนวณจำนวนเดือนที่ต่างกัน (ใช้ floor เพื่อปัดลง)
+                                    $diffMonths = (int) floor($calDateCarbon->floatDiffInMonths($nextDateCarbon));
+                                    
+                                    if ($diffMonths > 0 && $diffMonths !== $instrument->cal_freq_months) {
+                                        $oldFreq = $instrument->cal_freq_months ?? 0;
+                                        $instrument->update(['cal_freq_months' => $diffMonths]);
                                         
-                                        // คำนวณจำนวนเดือนที่ต่างกัน
-                                        $diffMonths = (int) round($calDateCarbon->diffInMonths($nextDateCarbon));
-                                        
-                                        if ($diffMonths > 0) {
-                                            $instrument->update(['cal_freq_months' => $diffMonths]);
-                                            
-                                            \Filament\Notifications\Notification::make()
-                                                ->title('อัปเดตความถี่สำเร็จ')
-                                                ->body("บันทึกความถี่ {$diffMonths} เดือน ให้กับ {$instrument->code_no}")
-                                                ->success()
-                                                ->send();
-                                        }
+                                        \Filament\Notifications\Notification::make()
+                                            ->title('อัปเดตความถี่สำเร็จ')
+                                            ->body("เปลี่ยนความถี่ {$oldFreq} → {$diffMonths} เดือน สำหรับ {$instrument->code_no}")
+                                            ->success()
+                                            ->send();
                                     }
                                 }),
                             
                             TextInput::make('remark')
-                                ->label('หมายเหตุ (Remark)'),
+                                ->label('หมายเหตุ (Remark)')
+                                // 🔥 ขยายเป็น 2 columns เมื่อ next_cal_date หายไป
+                                ->columnSpan(fn (Get $get) => ($get('result_status') === 'Reject' || $get('cal_level') === 'C') ? 2 : 1),
                         ]),
                     ]),
         ]);

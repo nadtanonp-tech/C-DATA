@@ -314,7 +314,9 @@ class CalibrationThreadRingGaugeResource extends Resource
                             DatePicker::make('next_cal_date')
                                 ->label('วันครบกำหนดครั้งถัดไป (Next Cal)')
                                 ->dehydrated()
-                                ->required()
+                                // 🔥 ซ่อนและไม่บังคับถ้าเป็น Reject หรือ Level C
+                                ->visible(fn (Get $get) => $get('result_status') !== 'Reject' && $get('cal_level') !== 'C')
+                                ->required(fn (Get $get) => $get('result_status') !== 'Reject' && $get('cal_level') !== 'C')
                                 ->live()
                                 ->afterStateUpdated(function ($state, Get $get) {
                                     $calDate = $get('cal_date');
@@ -325,26 +327,26 @@ class CalibrationThreadRingGaugeResource extends Resource
                                     $instrument = \App\Models\Instrument::find($instrumentId);
                                     if (!$instrument) return;
                                     
-                                    if (empty($instrument->cal_freq_months) || $instrument->cal_freq_months == 0) {
-                                        $calDateCarbon = \Carbon\Carbon::parse($calDate);
-                                        $nextDateCarbon = \Carbon\Carbon::parse($state);
+                                    // 🔥 คำนวณและ save ทุกครั้ง
+                                    $calDateCarbon = \Carbon\Carbon::parse($calDate);
+                                    $nextDateCarbon = \Carbon\Carbon::parse($state);
+                                    $diffMonths = (int) floor($calDateCarbon->floatDiffInMonths($nextDateCarbon));
+                                    
+                                    if ($diffMonths > 0 && $diffMonths !== $instrument->cal_freq_months) {
+                                        $oldFreq = $instrument->cal_freq_months ?? 0;
+                                        $instrument->update(['cal_freq_months' => $diffMonths]);
                                         
-                                        $diffMonths = (int) round($calDateCarbon->diffInMonths($nextDateCarbon));
-                                        
-                                        if ($diffMonths > 0) {
-                                            $instrument->update(['cal_freq_months' => $diffMonths]);
-                                            
-                                            \Filament\Notifications\Notification::make()
-                                                ->title('อัปเดตความถี่สำเร็จ')
-                                                ->body("บันทึกความถี่ {$diffMonths} เดือน ให้กับ {$instrument->code_no}")
-                                                ->success()
-                                                ->send();
-                                        }
+                                        \Filament\Notifications\Notification::make()
+                                            ->title('อัปเดตความถี่สำเร็จ')
+                                            ->body("เปลี่ยนความถี่ {$oldFreq} → {$diffMonths} เดือน สำหรับ {$instrument->code_no}")
+                                            ->success()
+                                            ->send();
                                     }
                                 }),
                             
                             TextInput::make('remark')
-                                ->label('หมายเหตุ (Remark)'),
+                                ->label('หมายเหตุ (Remark)')
+                                ->columnSpan(fn (Get $get) => ($get('result_status') === 'Reject' || $get('cal_level') === 'C') ? 2 : 1),
                         ]),
                     ]),
         ]);

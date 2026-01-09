@@ -498,7 +498,7 @@ class CalibrationRecordResource extends Resource
                         ->dehydrated() 
                         ->extraAttributes(['style' => 'font-family: monospace; font-weight: 600; text-align: center;']),
                     TextInput::make('percent_error')
-                        ->label('% ERROR (คิดจาก Range)')
+                        ->label('% ERROR (จาก Range)')
                         ->disabled()
                         ->dehydrated()
                         ->extraAttributes(['style' => 'font-family: monospace; font-weight: 600; text-align: center;']),
@@ -918,6 +918,8 @@ class CalibrationRecordResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->defaultPaginationPageOption(10)
+            ->paginationPageOptions([10, 25])
             ->columns([
                 TextColumn::make('instrument.code_no')->label('ID Code')->searchable()->sortable(),
                 TextColumn::make('instrument.toolType.name')->label('Type Name')->searchable(),

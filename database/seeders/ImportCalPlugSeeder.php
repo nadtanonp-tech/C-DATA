@@ -10,7 +10,13 @@ class ImportCalPlugSeeder extends Seeder
 {
     public function run()
     {
+        $this->command->info('');
+        $this->command->info('===========================================');
+        $this->command->info('📥 เริ่ม Import Plug Gauge (CALPlug)');
+        $this->command->info('===========================================');
+        
         // 🔥 ลบข้อมูลเก่าเฉพาะ Plug Gauge (8-03-%) ก่อน import
+        $this->command->warn('⚠️  กำลังลบข้อมูลเก่า Plug Gauge...');
         $plugGaugeInstrumentIds = DB::table('instruments')
             ->where('code_no', 'LIKE', '8-03-%')
             ->pluck('id')
@@ -26,6 +32,8 @@ class ImportCalPlugSeeder extends Seeder
 
         // 1. ดึงข้อมูลจากตารางเก่า
         $oldLogs = DB::table('CALPlug')->get();
+        $totalRecords = $oldLogs->count();
+        $this->command->info("📊 พบข้อมูล {$totalRecords} รายการใน CALPlug");
 
         $batchData = [];
         $batchSize = 50; 
@@ -41,6 +49,7 @@ class ImportCalPlugSeeder extends Seeder
                             ->first();
 
             if (!$instrument) {
+                $this->command->warn("   ⚠️ ข้าม: ไม่พบ Instrument CodeNo: {$row->CodeNo}");
                 $skipCount++;
                 continue;
             }
@@ -142,7 +151,7 @@ class ImportCalPlugSeeder extends Seeder
                 'instrument_id' => $instrument->id,
                 'cal_date'      => $this->parseDate($row->CalDate),
                 'next_cal_date' => $this->parseDate($row->DueDate),
-                
+                'cal_place'     => 'Internal',
                 'calibration_data' => json_encode($calData, JSON_UNESCAPED_UNICODE),
                 
                 'environment'   => json_encode([
@@ -170,7 +179,10 @@ class ImportCalPlugSeeder extends Seeder
             $importCount += count($batchData);
         }
         
-        $this->command->info("✅ Import เสร็จสิ้น: {$importCount} records, ข้าม: {$skipCount} records");
+        $this->command->info('');
+        $this->command->info('✅ นำเข้าข้อมูล Plug Gauge เสร็จสิ้น!');
+        $this->command->info("📊 สถิติ: นำเข้า {$importCount} รายการ | ข้าม {$skipCount} รายการ");
+        $this->command->info('===========================================');
     }
 
     private function parseDate($dateVal)

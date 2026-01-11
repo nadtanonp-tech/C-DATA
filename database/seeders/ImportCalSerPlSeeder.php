@@ -66,10 +66,9 @@ class ImportCalSerPlSeeder extends Seeder
                 // แปลง Array เป็น JSON
                 'calibration_data' => json_encode($calData, JSON_UNESCAPED_UNICODE),
 
-                'environment'   => "Temp: {$row->Temp} / Humid: {$row->Humidity}",
+                'environment'   => json_encode(['humidity' => $row->Humidity, 'temperature' => $row->Temp], JSON_UNESCAPED_UNICODE),
                 'result_status' => trim($row->Total), // ผลรวม (Pass/Fail)
                 'remark'        => trim($row->RemarkC),
-                'legacy_source_table' => 'CALSerPlThrPlSerPlFor',
 
                 'created_at'    => now(),
                 'updated_at'    => now(),

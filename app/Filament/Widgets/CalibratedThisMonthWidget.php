@@ -18,6 +18,9 @@ class CalibratedThisMonthWidget extends BaseWidget
     
     protected static ?int $sort = 3;
 
+    // 🚀 Lazy loading - ทำให้ widget โหลดแบบ async ไม่บล็อก navigation
+    protected static bool $isLazy = true;
+
     protected static string $view = 'filament.widgets.collapsible-table-widget';
 
     public ?int $selectedMonth = null;
@@ -42,46 +45,44 @@ class CalibratedThisMonthWidget extends BaseWidget
 
     public function table(Table $table): Table
     {
-        // สร้างวันที่จากเดือนและปีที่เลือก
-        $month = $this->selectedMonth ?? (int) Carbon::now()->format('m');
-        $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
+        // 🚀 ใช้ closure เพื่อให้ query รันเฉพาะตอนตารางแสดงจริงๆ
+        $widget = $this;
         
-        // กรณีต่างๆ ของ month/year
-        $currentYear = (int) Carbon::now()->format('Y');
-        $minYear = $currentYear - 10;
-        $maxYear = $currentYear + 5;
-        
-        if ($month === 0 && $year === 0) {
-            // ทุกเดือน ทุกปี
-            $startDate = Carbon::createFromDate($minYear, 1, 1)->startOfYear();
-            $endDate = Carbon::createFromDate($maxYear, 12, 31)->endOfYear();
-        } elseif ($month === 0) {
-            // ทุกเดือน ปีที่เลือก
-            $startDate = Carbon::createFromDate($year, 1, 1)->startOfYear();
-            $endDate = Carbon::createFromDate($year, 12, 31)->endOfYear();
-        } elseif ($year === 0) {
-            // เดือนที่เลือก ทุกปี
-            $startDate = Carbon::createFromDate($minYear, $month, 1)->startOfMonth();
-            $endDate = Carbon::createFromDate($maxYear, $month, 1)->endOfMonth();
-        } else {
-            // เดือนและปีที่เลือก
-            $startDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
-            $endDate = Carbon::createFromDate($year, $month, 1)->endOfMonth();
-        }
-
-        $query = CalibrationRecord::query()
-            ->with('instrument')
-            ->whereBetween('cal_date', [$startDate, $endDate])
-            ->orderBy('cal_date', 'desc');
-        
-        // Filter by Level if selected
-        if ($this->selectedLevel) {
-            $query->where('cal_level', $this->selectedLevel);
-        }
-
         return $table
             ->heading(false)
-            ->query($query)
+            ->query(CalibrationRecord::query()->with('instrument'))
+            ->modifyQueryUsing(function (Builder $query) use ($widget) {
+                $month = $widget->selectedMonth ?? (int) Carbon::now()->format('m');
+                $year = $widget->selectedYear ?? (int) Carbon::now()->format('Y');
+                
+                $currentYear = (int) Carbon::now()->format('Y');
+                $minYear = $currentYear - 10;
+                $maxYear = $currentYear + 5;
+                
+                if ($month === 0 && $year === 0) {
+                    $startDate = Carbon::createFromDate($minYear, 1, 1)->startOfYear();
+                    $endDate = Carbon::createFromDate($maxYear, 12, 31)->endOfYear();
+                } elseif ($month === 0) {
+                    $startDate = Carbon::createFromDate($year, 1, 1)->startOfYear();
+                    $endDate = Carbon::createFromDate($year, 12, 31)->endOfYear();
+                } elseif ($year === 0) {
+                    $startDate = Carbon::createFromDate($minYear, $month, 1)->startOfMonth();
+                    $endDate = Carbon::createFromDate($maxYear, $month, 1)->endOfMonth();
+                } else {
+                    $startDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+                    $endDate = Carbon::createFromDate($year, $month, 1)->endOfMonth();
+                }
+                
+                $query->whereBetween('cal_date', [$startDate, $endDate])
+                      ->orderBy('cal_date', 'desc');
+                
+                if ($widget->selectedLevel) {
+                    $query->where('cal_level', $widget->selectedLevel);
+                }
+                
+                return $query;
+            })
+            ->deferLoading() // 🚀 ไม่ query จนกว่าตารางจะแสดง
             ->defaultPaginationPageOption(5)
             ->paginationPageOptions([5, 10, 25])
             ->columns([

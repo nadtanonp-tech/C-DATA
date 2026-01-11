@@ -10,7 +10,13 @@ class ImportCalThreadPlugSeeder extends Seeder
 {
     public function run()
     {
+        $this->command->info('');
+        $this->command->info('===========================================');
+        $this->command->info('📥 เริ่ม Import Thread Plug Gauge');
+        $this->command->info('===========================================');
+        
         // 🔥 ลบข้อมูลเก่าเฉพาะ Thread Plug Gauge (8-04-%) ก่อน import
+        $this->command->warn('⚠️  กำลังลบข้อมูลเก่า...');
         $threadPlugGaugeInstrumentIds = DB::table('instruments')
             ->where('code_no', 'LIKE', '8-04-%')
             ->pluck('id')
@@ -296,7 +302,7 @@ class ImportCalThreadPlugSeeder extends Seeder
                 'instrument_id' => $instrument->id,
                 'cal_date'      => $this->parseDate($row->CalDate),
                 'next_cal_date' => $this->parseDate($row->DueDate),
-                
+                'cal_place'     => 'Internal',
                 'calibration_data' => json_encode($calData, JSON_UNESCAPED_UNICODE),
                 
                 'environment'   => json_encode([
@@ -324,12 +330,16 @@ class ImportCalThreadPlugSeeder extends Seeder
             $importCount += count($batchData);
         }
         
-        $this->command->info("✅ Import Thread Plug Gauge (CALThreadPl) เสร็จสิ้น: {$importCount} records, ข้าม: {$skipCount} records");
+        $this->command->info('');
+        $this->command->info('✅ นำเข้าข้อมูล Thread Plug Gauge (CALThreadPl) เสร็จสิ้น!');
+        $this->command->info("📊 สถิติ: นำเข้า {$importCount} รายการ | ข้าม {$skipCount} รายการ");
 
         // =============================================
         // 🔥 Part 2: Import จาก CALSerPlThrPlSerPlFor (เฉพาะ 8-06-%)
         // =============================================
-        $this->command->info('📥 เริ่ม Import จาก CALSerPlThrPlSerPlFor (เฉพาะ 8-06-%)...');
+        $this->command->info('');
+        $this->command->info('📥 เริ่ม Import Serration Plug (8-06-%)');
+        $this->command->warn('⚠️  กำลังลบข้อมูลเก่า...');
         
         // ลบข้อมูลเก่าเฉพาะ 8-06-% ก่อน import
         $serrationPlugIds = DB::table('instruments')
@@ -450,6 +460,7 @@ class ImportCalThreadPlugSeeder extends Seeder
             
             // ข้ามถ้าไม่มี specs
             if (empty($specs)) {
+                $this->command->warn("   ⚠️ ข้าม: ไม่มีข้อมูล specs สำหรับ {$row->CodeNo}");
                 $skipCount2++;
                 continue;
             }
@@ -470,6 +481,7 @@ class ImportCalThreadPlugSeeder extends Seeder
                 'instrument_id' => $instrument->id,
                 'cal_date'      => $this->parseDate($row->CalDate),
                 'next_cal_date' => $this->parseDate($row->DueDate),
+                'cal_place'     => 'Internal',
                 
                 'calibration_data' => json_encode($calData, JSON_UNESCAPED_UNICODE),
                 
@@ -498,7 +510,10 @@ class ImportCalThreadPlugSeeder extends Seeder
             $importCount2 += count($batchData2);
         }
         
-        $this->command->info("✅ Import Serration Plug (CALSerPlThrPlSerPlFor 8-06-%) เสร็จสิ้น: {$importCount2} records, ข้าม: {$skipCount2} records");
+        $this->command->info('');
+        $this->command->info('✅ นำเข้าข้อมูล Serration Plug (8-06-%) เสร็จสิ้น!');
+        $this->command->info("📊 สถิติ: นำเข้า {$importCount2} รายการ | ข้าม {$skipCount2} รายการ");
+        $this->command->info('===========================================');
     }
 
     /**

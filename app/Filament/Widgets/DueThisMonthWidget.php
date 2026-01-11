@@ -19,6 +19,9 @@ class DueThisMonthWidget extends BaseWidget
     
     protected static ?int $sort = 2;
 
+    // 🚀 Lazy loading - ทำให้ widget โหลดแบบ async ไม่บล็อก navigation
+    protected static bool $isLazy = true;
+
     protected static string $view = 'filament.widgets.collapsible-table-widget';
 
     public ?int $selectedMonth = null;
@@ -42,16 +45,17 @@ class DueThisMonthWidget extends BaseWidget
     }
 
     /**
-     * ดึง record IDs ที่ครบกำหนดและยังไม่ได้สอบเทียบ (ใช้ SQL เดียว)
+     * ดึง record IDs ที่ครบกำหนดและยังไม่ได้สอบเทียบ (ใช้ NOT EXISTS ที่เร็วกว่า LEFT JOIN)
      */
-    private function getDueRecordIds($startDate, $endDate): array
+    public function getDueRecordIds($startDate, $endDate): array
     {
         return DB::table('calibration_logs as cl')
-            ->leftJoin('calibration_logs as newer', function ($join) {
-                $join->on('newer.instrument_id', '=', 'cl.instrument_id')
-                     ->whereColumn('newer.cal_date', '>', 'cl.cal_date');
+            ->whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('calibration_logs as newer')
+                    ->whereColumn('newer.instrument_id', 'cl.instrument_id')
+                    ->whereColumn('newer.cal_date', '>', 'cl.cal_date');
             })
-            ->whereNull('newer.id')
             ->whereBetween('cl.next_cal_date', [$startDate, $endDate])
             ->pluck('cl.id')
             ->toArray();
@@ -59,51 +63,50 @@ class DueThisMonthWidget extends BaseWidget
 
     public function table(Table $table): Table
     {
-        // สร้างวันที่จากเดือนและปีที่เลือก
-        $month = $this->selectedMonth ?? (int) Carbon::now()->format('m');
-        $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
+        // 🚀 ใช้ closure เพื่อให้ query รันเฉพาะตอนตารางแสดงจริงๆ
+        $widget = $this;
         
-        // กรณีต่างๆ ของ month/year
-        $currentYear = (int) Carbon::now()->format('Y');
-        $minYear = $currentYear - 10;
-        $maxYear = $currentYear + 5;
-        
-        if ($month === 0 && $year === 0) {
-            // ทุกเดือน ทุกปี
-            $startDate = Carbon::createFromDate($minYear, 1, 1)->startOfYear();
-            $endDate = Carbon::createFromDate($maxYear, 12, 31)->endOfYear();
-        } elseif ($month === 0) {
-            // ทุกเดือน ปีที่เลือก
-            $startDate = Carbon::createFromDate($year, 1, 1)->startOfYear();
-            $endDate = Carbon::createFromDate($year, 12, 31)->endOfYear();
-        } elseif ($year === 0) {
-            // เดือนที่เลือก ทุกปี
-            $startDate = Carbon::createFromDate($minYear, $month, 1)->startOfMonth();
-            $endDate = Carbon::createFromDate($maxYear, $month, 1)->endOfMonth();
-        } else {
-            // เดือนและปีที่เลือก
-            $startDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
-            $endDate = Carbon::createFromDate($year, $month, 1)->endOfMonth();
-        }
-        
-        $dueIds = $this->getDueRecordIds($startDate, $endDate);
-        
-        if (empty($dueIds)) {
-            $dueIds = [0];
-        }
-
-        $query = CalibrationRecord::query()
-            ->with('instrument')
-            ->whereIn('id', $dueIds);
-        
-        // Filter by Level if selected
-        if ($this->selectedLevel) {
-            $query->where('cal_level', $this->selectedLevel);
-        }
-
         return $table
             ->heading(false)
-            ->query($query)
+            ->query(CalibrationRecord::query()->with('instrument'))
+            ->modifyQueryUsing(function (Builder $query) use ($widget) {
+                // query นี้จะรันเมื่อ table render เท่านั้น (ไม่รันตอน page load)
+                $month = $widget->selectedMonth ?? (int) Carbon::now()->format('m');
+                $year = $widget->selectedYear ?? (int) Carbon::now()->format('Y');
+                
+                $currentYear = (int) Carbon::now()->format('Y');
+                $minYear = $currentYear - 10;
+                $maxYear = $currentYear + 5;
+                
+                if ($month === 0 && $year === 0) {
+                    $startDate = Carbon::createFromDate($minYear, 1, 1)->startOfYear();
+                    $endDate = Carbon::createFromDate($maxYear, 12, 31)->endOfYear();
+                } elseif ($month === 0) {
+                    $startDate = Carbon::createFromDate($year, 1, 1)->startOfYear();
+                    $endDate = Carbon::createFromDate($year, 12, 31)->endOfYear();
+                } elseif ($year === 0) {
+                    $startDate = Carbon::createFromDate($minYear, $month, 1)->startOfMonth();
+                    $endDate = Carbon::createFromDate($maxYear, $month, 1)->endOfMonth();
+                } else {
+                    $startDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+                    $endDate = Carbon::createFromDate($year, $month, 1)->endOfMonth();
+                }
+                
+                $dueIds = $widget->getDueRecordIds($startDate, $endDate);
+                
+                if (empty($dueIds)) {
+                    $dueIds = [0];
+                }
+                
+                $query->whereIn('id', $dueIds);
+                
+                if ($widget->selectedLevel) {
+                    $query->where('cal_level', $widget->selectedLevel);
+                }
+                
+                return $query;
+            })
+            ->deferLoading() // 🚀 ไม่ query จนกว่าตารางจะแสดง
             ->defaultPaginationPageOption(5)
             ->paginationPageOptions([5, 10, 25])
             ->columns([

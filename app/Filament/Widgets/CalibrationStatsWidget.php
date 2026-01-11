@@ -68,11 +68,12 @@ class CalibrationStatsWidget extends BaseWidget
     private function countDueRecords($startDate, $endDate): int
     {
         $query = DB::table('calibration_logs as cl')
-            ->leftJoin('calibration_logs as newer', function ($join) {
-                $join->on('newer.instrument_id', '=', 'cl.instrument_id')
-                     ->whereColumn('newer.cal_date', '>', 'cl.cal_date');
+            ->whereNotExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('calibration_logs as newer')
+                    ->whereColumn('newer.instrument_id', 'cl.instrument_id')
+                    ->whereColumn('newer.cal_date', '>', 'cl.cal_date');
             })
-            ->whereNull('newer.id')
             ->whereBetween('cl.next_cal_date', [$startDate, $endDate]);
         
         if ($this->selectedLevel) {
@@ -92,11 +93,12 @@ class CalibrationStatsWidget extends BaseWidget
         $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
         
         $query = DB::table('calibration_logs as cl')
-            ->leftJoin('calibration_logs as newer', function ($join) {
-                $join->on('newer.instrument_id', '=', 'cl.instrument_id')
-                     ->whereColumn('newer.cal_date', '>', 'cl.cal_date');
+            ->whereNotExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('calibration_logs as newer')
+                    ->whereColumn('newer.instrument_id', 'cl.instrument_id')
+                    ->whereColumn('newer.cal_date', '>', 'cl.cal_date');
             })
-            ->whereNull('newer.id')
             ->where('cl.next_cal_date', '<', $today);
         
         // กรองตามเดือน/ปี

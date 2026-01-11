@@ -100,8 +100,8 @@ class MonthSelectorWidget extends Widget implements HasForms
             12 => 'ธันวาคม',
         ];
         
-        // เพิ่ม (เดือนนี้) ให้เดือนปัจจุบัน
-        $months[$currentMonth] .= ' (เดือนนี้)';
+        // เพิ่ม (ปัจจุบัน) ให้เดือนปัจจุบัน
+        $months[$currentMonth] .= ' (ปัจจุบัน)';
         
         return $months;
     }
@@ -138,7 +138,7 @@ class MonthSelectorWidget extends Widget implements HasForms
             $year = (int) $year;
             $thaiYear = $year + 543;
             $label = $year === $currentYear 
-                ? "พ.ศ. {$thaiYear} (ปีนี้)" 
+                ? "พ.ศ. {$thaiYear} (ปัจจุบัน)" 
                 : "พ.ศ. {$thaiYear}";
             $options[$year] = $label;
         }

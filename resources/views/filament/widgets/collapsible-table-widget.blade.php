@@ -4,7 +4,12 @@
             display: none !important;
         }
     </style>
-    <div x-data="{ collapsed: false }" class="collapsible-table-container fi-wi-table rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
+    {{-- 🚀 Start collapsed และโหลดข้อมูลตอนกดเปิด --}}
+    <div 
+        x-data="{ collapsed: true, hasLoaded: false }" 
+        x-effect="if (!collapsed && !hasLoaded) { hasLoaded = true }"
+        class="collapsible-table-container fi-wi-table rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10"
+    >
         <div 
             @click="collapsed = !collapsed" 
             class="flex items-center justify-between gap-3 p-4 sm:px-6 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors rounded-t-xl"
@@ -25,7 +30,11 @@
         </div>
         
         <div x-show="!collapsed" x-collapse>
-            {{ $this->table }}
+            {{-- โหลด table เมื่อเคยเปิดแล้ว --}}
+            <template x-if="hasLoaded">
+                <div>{{ $this->table }}</div>
+            </template>
         </div>
     </div>
 </x-filament-widgets::widget>
+

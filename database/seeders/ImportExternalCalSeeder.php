@@ -61,7 +61,6 @@ class ImportExternalCalSeeder extends Seeder
                 'calibration_data' => json_encode($calData, JSON_UNESCAPED_UNICODE),
                 'result_status' => $row->Result, 
                 'remark'        => $row->Remark,
-                'legacy_source_table' => 'ExternalCAL',
                 
                 'created_at'    => now(),
                 'updated_at'    => now(),

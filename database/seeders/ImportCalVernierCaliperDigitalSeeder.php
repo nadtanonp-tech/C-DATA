@@ -10,9 +10,13 @@ class ImportCalVernierCaliperDigitalSeeder extends Seeder
 {
     public function run()
     {
-        $this->command->info('📥 เริ่ม Import Vernier Caliper Digital (8-10-%) จาก CALVernierDigital...');
+        $this->command->info('');
+        $this->command->info('===========================================');
+        $this->command->info('📥 เริ่ม Import Vernier Caliper Digital (8-10-%)');
+        $this->command->info('===========================================');
         
         // 🔥 ลบข้อมูลเก่าเฉพาะ 8-10-% ก่อน import
+        $this->command->warn('⚠️  กำลังลบข้อมูลเก่า...');
         $instrumentIds = DB::table('instruments')
             ->where('code_no', 'LIKE', '8-10-%')
             ->pluck('id')
@@ -85,6 +89,7 @@ class ImportCalVernierCaliperDigitalSeeder extends Seeder
             
             // ข้ามถ้าไม่มี readings เลย
             if (empty($readings) && empty($readingsInner) && empty($readingsDepth) && empty($readingsParallelism)) {
+                $this->command->warn("   ⚠️ ข้าม: ไม่มีข้อมูล readings สำหรับ {$row->CodeNo}");
                 $skipCount++;
                 continue;
             }
@@ -118,7 +123,7 @@ class ImportCalVernierCaliperDigitalSeeder extends Seeder
                 'instrument_id' => $instrument->id,
                 'cal_date'      => $this->parseDate($row->CalDate ?? null),
                 'next_cal_date' => $this->parseDate($row->DueDate ?? null),
-                
+                'cal_place'     => 'Internal',
                 'calibration_data' => json_encode($calData, JSON_UNESCAPED_UNICODE),
                 
                 'environment'   => json_encode([
@@ -146,7 +151,10 @@ class ImportCalVernierCaliperDigitalSeeder extends Seeder
             $importCount += count($batchData);
         }
         
-        $this->command->info("✅ Import Vernier Caliper Digital เสร็จสิ้น: {$importCount} records, ข้าม: {$skipCount} records");
+        $this->command->info('');
+        $this->command->info('✅ นำเข้าข้อมูล Vernier Caliper Digital เสร็จสิ้น!');
+        $this->command->info("📊 สถิติ: นำเข้า {$importCount} รายการ | ข้าม {$skipCount} รายการ");
+        $this->command->info('===========================================');
     }
 
     /**

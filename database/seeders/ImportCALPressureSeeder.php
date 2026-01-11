@@ -10,10 +10,15 @@ class ImportCALPressureSeeder extends Seeder
 {
     public function run()
     {
-        $this->command->info('📥 เริ่ม Import Pressure Gauge จาก CALPressure...');
+        $this->command->info('');
+        $this->command->info('===========================================');
+        $this->command->info('📥 เริ่ม Import Pressure Gauge (CALPressure)');
+        $this->command->info('===========================================');
         
         // ดึงข้อมูลจาก CALPressure
         $oldLogs = DB::table('CALPressure')->get();
+        $totalRecords = $oldLogs->count();
+        $this->command->info("📊 พบข้อมูล {$totalRecords} รายการใน CALPressure");
 
         $batchData = [];
         $batchSize = 50;
@@ -46,6 +51,7 @@ class ImportCALPressureSeeder extends Seeder
             
             // ข้ามถ้าไม่มี readings เลย
             if (empty($readingsPressure)) {
+                $this->command->warn("   ⚠️ ข้าม: ไม่มีข้อมูล readings สำหรับ {$row->CodeNo}");
                 $skipCount++;
                 continue;
             }
@@ -60,7 +66,7 @@ class ImportCALPressureSeeder extends Seeder
                 'instrument_id' => $instrument->id,
                 'cal_date'      => $this->parseDate($row->CalDate ?? null),
                 'next_cal_date' => $this->parseDate($row->DueDate ?? null),
-                
+                'cal_place'     => 'Internal',
                 'calibration_data' => json_encode($calData, JSON_UNESCAPED_UNICODE),
                 
                 'environment'   => json_encode([
@@ -88,7 +94,10 @@ class ImportCALPressureSeeder extends Seeder
             $importCount += count($batchData);
         }
         
-        $this->command->info("✅ Import Pressure Gauge เสร็จสิ้น: {$importCount} records, ข้าม: {$skipCount} records");
+        $this->command->info('');
+        $this->command->info('✅ นำเข้าข้อมูล Pressure Gauge เสร็จสิ้น!');
+        $this->command->info("📊 สถิติ: นำเข้า {$importCount} รายการ | ข้าม {$skipCount} รายการ");
+        $this->command->info('===========================================');
     }
 
     /**

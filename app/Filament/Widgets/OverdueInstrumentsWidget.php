@@ -19,6 +19,9 @@ class OverdueInstrumentsWidget extends BaseWidget
     
     protected static ?int $sort = 4;
 
+    // 🚀 Lazy loading - ทำให้ widget โหลดแบบ async ไม่บล็อก navigation
+    protected static bool $isLazy = true;
+
     protected static string $view = 'filament.widgets.collapsible-table-widget';
 
     public ?int $selectedMonth = null;
@@ -44,18 +47,19 @@ class OverdueInstrumentsWidget extends BaseWidget
     /**
      * ดึง record IDs ที่เลยกำหนดและยังไม่ได้สอบเทียบ
      */
-    private function getOverdueRecordIds(): array
+    public function getOverdueRecordIds(): array
     {
         $today = Carbon::today();
         $month = $this->selectedMonth ?? (int) Carbon::now()->format('m');
         $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
         
         $query = DB::table('calibration_logs as cl')
-            ->leftJoin('calibration_logs as newer', function ($join) {
-                $join->on('newer.instrument_id', '=', 'cl.instrument_id')
-                     ->whereColumn('newer.cal_date', '>', 'cl.cal_date');
+            ->whereNotExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('calibration_logs as newer')
+                    ->whereColumn('newer.instrument_id', 'cl.instrument_id')
+                    ->whereColumn('newer.cal_date', '>', 'cl.cal_date');
             })
-            ->whereNull('newer.id')
             ->where('cl.next_cal_date', '<', $today);
         
         // กรองตามเดือน/ปี ของ next_cal_date (วันที่ครบกำหนด)
@@ -78,25 +82,29 @@ class OverdueInstrumentsWidget extends BaseWidget
 
     public function table(Table $table): Table
     {
-        $overdueIds = $this->getOverdueRecordIds();
-        
-        if (empty($overdueIds)) {
-            $overdueIds = [0];
-        }
-
-        $query = CalibrationRecord::query()
-            ->with('instrument')
-            ->whereIn('id', $overdueIds)
-            ->orderBy('next_cal_date', 'asc');
-        
-        // Filter by Level if selected
-        if ($this->selectedLevel) {
-            $query->where('cal_level', $this->selectedLevel);
-        }
+        // 🚀 ใช้ closure เพื่อให้ query รันเฉพาะตอนตารางแสดงจริงๆ
+        $widget = $this;
 
         return $table
             ->heading(false)
-            ->query($query)
+            ->query(CalibrationRecord::query()->with('instrument'))
+            ->modifyQueryUsing(function (Builder $query) use ($widget) {
+                $overdueIds = $widget->getOverdueRecordIds();
+                
+                if (empty($overdueIds)) {
+                    $overdueIds = [0];
+                }
+                
+                $query->whereIn('id', $overdueIds)
+                      ->orderBy('next_cal_date', 'asc');
+                
+                if ($widget->selectedLevel) {
+                    $query->where('cal_level', $widget->selectedLevel);
+                }
+                
+                return $query;
+            })
+            ->deferLoading() // 🚀 ไม่ query จนกว่าตารางจะแสดง
             ->defaultPaginationPageOption(5)
             ->paginationPageOptions([5, 10, 25,])
             ->columns([

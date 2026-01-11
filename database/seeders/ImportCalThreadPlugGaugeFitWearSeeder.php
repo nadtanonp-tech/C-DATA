@@ -10,9 +10,13 @@ class ImportCalThreadPlugGaugeFitWearSeeder extends Seeder
 {
     public function run()
     {
-        $this->command->info('📥 เริ่ม Import Thread Plug Gauge Fit Wear จาก CALSerPlThrPlSerPlFor...');
+        $this->command->info('');
+        $this->command->info('===========================================');
+        $this->command->info('📥 เริ่ม Import Thread Plug Gauge Fit Wear');
+        $this->command->info('===========================================');
         
         // 🔥 ลบข้อมูลเก่าเฉพาะ 5-08-%, 5-09-%, 8-08-%, 8-09-% ก่อน import
+        $this->command->warn('⚠️  กำลังลบข้อมูลเก่า...');
         $fitWearInstrumentIds = DB::table('instruments')
             ->where(function ($q) {
                 $q->where('code_no', 'LIKE', '5-08-%')
@@ -142,6 +146,7 @@ class ImportCalThreadPlugGaugeFitWearSeeder extends Seeder
             
             // ข้ามถ้าไม่มี specs
             if (empty($specs)) {
+                $this->command->warn("   ⚠️ ข้าม: ไม่มีข้อมูล specs สำหรับ {$row->CodeNo}");
                 $skipCount++;
                 continue;
             }
@@ -162,7 +167,7 @@ class ImportCalThreadPlugGaugeFitWearSeeder extends Seeder
                 'instrument_id' => $instrument->id,
                 'cal_date'      => $this->parseDate($row->CalDate),
                 'next_cal_date' => $this->parseDate($row->DueDate),
-                
+                'cal_place'     => 'Internal',
                 'calibration_data' => json_encode($calData, JSON_UNESCAPED_UNICODE),
                 
                 'environment'   => json_encode([
@@ -190,7 +195,10 @@ class ImportCalThreadPlugGaugeFitWearSeeder extends Seeder
             $importCount += count($batchData);
         }
         
-        $this->command->info("✅ Import Thread Plug Gauge Fit Wear เสร็จสิ้น: {$importCount} records, ข้าม: {$skipCount} records");
+        $this->command->info('');
+        $this->command->info('✅ นำเข้าข้อมูล Thread Plug Gauge Fit Wear เสร็จสิ้น!');
+        $this->command->info("📊 สถิติ: นำเข้า {$importCount} รายการ | ข้าม {$skipCount} รายการ");
+        $this->command->info('===========================================');
     }
 
     /**

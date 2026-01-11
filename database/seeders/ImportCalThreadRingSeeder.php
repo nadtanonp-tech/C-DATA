@@ -10,7 +10,13 @@ class ImportCalThreadRingSeeder extends Seeder
 {
     public function run()
     {
+        $this->command->info('');
+        $this->command->info('===========================================');
+        $this->command->info('📥 เริ่ม Import Thread Ring Gauge');
+        $this->command->info('===========================================');
+        
         // 🔥 ลบข้อมูลเก่าเฉพาะ Thread Ring Gauge (8-05-%) ก่อน import
+        $this->command->warn('⚠️  กำลังลบข้อมูลเก่า...');
         $threadRingGaugeInstrumentIds = DB::table('instruments')
             ->where('code_no', 'LIKE', '8-05-%')
             ->pluck('id')
@@ -96,7 +102,7 @@ class ImportCalThreadRingSeeder extends Seeder
                 'instrument_id' => $instrument->id,
                 'cal_date'      => $this->parseDate($row->CalDate),
                 'next_cal_date' => $this->parseDate($row->DueDate),
-                
+                'cal_place'     => 'Internal',
                 'calibration_data' => json_encode($calData, JSON_UNESCAPED_UNICODE),
                 
                 'environment'   => json_encode([
@@ -124,7 +130,10 @@ class ImportCalThreadRingSeeder extends Seeder
             $importCount += count($batchData);
         }
         
-        $this->command->info("✅ Import Thread Ring Gauge เสร็จสิ้น: {$importCount} records, ข้าม: {$skipCount} records");
+        $this->command->info('');
+        $this->command->info('✅ นำเข้าข้อมูล Thread Ring Gauge เสร็จสิ้น!');
+        $this->command->info("📊 สถิติ: นำเข้า {$importCount} รายการ | ข้าม {$skipCount} รายการ");
+        $this->command->info('===========================================');
     }
 
     private function parseDate($dateVal)

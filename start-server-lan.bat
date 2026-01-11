@@ -1,7 +1,8 @@
 @echo off
-title C-DATA Calibration System
+title C-DATA Calibration System (LAN Office)
 echo ========================================
 echo    C-DATA Calibration System
+echo    LAN Office: 172.29.31.71
 echo ========================================
 echo.
 
@@ -21,9 +22,9 @@ echo Starting server...
 echo.
 
 :: Open browser after 3 seconds
-start "" cmd /c "timeout /t 3 >nul && start http://172.20.10.4:8000/admin"
+start "" cmd /c "timeout /t 3 >nul && start http://172.29.31.71:8000/admin"
 
 :: Run Laravel Server
-php artisan serve --host=172.20.10.4 --port=8000
+php artisan serve --host=172.29.31.71 --port=8000
 
 pause

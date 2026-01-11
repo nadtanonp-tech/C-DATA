@@ -20,54 +20,68 @@ class CalibratedThisMonthWidget extends BaseWidget
 
     protected static string $view = 'filament.widgets.collapsible-table-widget';
 
-    public ?string $selectedMonth = null;
-    public ?string $selectedYear = null;
-    public bool $viewByYear = false;
+    public ?int $selectedMonth = null;
+    public ?int $selectedYear = null;
+    public ?string $selectedLevel = null;
 
     public function mount(): void
     {
-        $this->selectedMonth = Carbon::now()->format('Y-m');
-        $this->selectedYear = Carbon::now()->format('Y');
+        $this->selectedMonth = (int) Carbon::now()->format('m');
+        $this->selectedYear = (int) Carbon::now()->format('Y');
+        $this->selectedLevel = null;
     }
 
-    #[On('month-changed')]
-    public function updateMonth($month): void
+    #[On('filter-changed')]
+    public function updateFilters($data): void
     {
-        $this->selectedMonth = $month;
-        $this->viewByYear = false;
-        $this->resetTable();
-    }
-
-    #[On('year-changed')]
-    public function updateYear($year): void
-    {
-        $this->selectedYear = $year;
-        $this->viewByYear = true;
+        $this->selectedMonth = $data['month'] ?? $this->selectedMonth;
+        $this->selectedYear = $data['year'] ?? $this->selectedYear;
+        $this->selectedLevel = $data['level'] ?: null;
         $this->resetTable();
     }
 
     public function table(Table $table): Table
     {
-        if ($this->viewByYear) {
-            $selectedDate = Carbon::createFromFormat('Y', $this->selectedYear);
-            $startDate = $selectedDate->copy()->startOfYear();
-            $endDate = $selectedDate->copy()->endOfYear();
+        // สร้างวันที่จากเดือนและปีที่เลือก
+        $month = $this->selectedMonth ?? (int) Carbon::now()->format('m');
+        $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
+        
+        // กรณีต่างๆ ของ month/year
+        $currentYear = (int) Carbon::now()->format('Y');
+        $minYear = $currentYear - 10;
+        $maxYear = $currentYear + 5;
+        
+        if ($month === 0 && $year === 0) {
+            // ทุกเดือน ทุกปี
+            $startDate = Carbon::createFromDate($minYear, 1, 1)->startOfYear();
+            $endDate = Carbon::createFromDate($maxYear, 12, 31)->endOfYear();
+        } elseif ($month === 0) {
+            // ทุกเดือน ปีที่เลือก
+            $startDate = Carbon::createFromDate($year, 1, 1)->startOfYear();
+            $endDate = Carbon::createFromDate($year, 12, 31)->endOfYear();
+        } elseif ($year === 0) {
+            // เดือนที่เลือก ทุกปี
+            $startDate = Carbon::createFromDate($minYear, $month, 1)->startOfMonth();
+            $endDate = Carbon::createFromDate($maxYear, $month, 1)->endOfMonth();
         } else {
-            $selectedDate = $this->selectedMonth 
-                ? Carbon::createFromFormat('Y-m', $this->selectedMonth) 
-                : Carbon::now();
-            $startDate = $selectedDate->copy()->startOfMonth();
-            $endDate = $selectedDate->copy()->endOfMonth();
+            // เดือนและปีที่เลือก
+            $startDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+            $endDate = Carbon::createFromDate($year, $month, 1)->endOfMonth();
+        }
+
+        $query = CalibrationRecord::query()
+            ->with('instrument')
+            ->whereBetween('cal_date', [$startDate, $endDate])
+            ->orderBy('cal_date', 'desc');
+        
+        // Filter by Level if selected
+        if ($this->selectedLevel) {
+            $query->where('cal_level', $this->selectedLevel);
         }
 
         return $table
             ->heading(false)
-            ->query(
-                CalibrationRecord::query()
-                    ->with('instrument')
-                    ->whereBetween('cal_date', [$startDate, $endDate])
-                    ->orderBy('cal_date', 'desc')
-            )
+            ->query($query)
             ->defaultPaginationPageOption(5)
             ->paginationPageOptions([5, 10, 25])
             ->columns([
@@ -117,24 +131,40 @@ class CalibratedThisMonthWidget extends BaseWidget
 
     public function getTableHeading(): string
     {
-        if ($this->viewByYear) {
-            $selectedDate = Carbon::createFromFormat('Y', $this->selectedYear);
-            $startDate = $selectedDate->copy()->startOfYear();
-            $endDate = $selectedDate->copy()->endOfYear();
-            $year = $this->selectedYear;
-            $thaiYear = (int)$year + 543;
-            $count = \App\Models\CalibrationRecord::whereBetween('cal_date', [$startDate, $endDate])->count();
-            return "เครื่องมือที่สอบเทียบแล้ว - พ.ศ. {$thaiYear} ({$count} รายการ)";
+        $month = $this->selectedMonth ?? (int) Carbon::now()->format('m');
+        $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
+        
+        // กรณีต่างๆ ของ month/year
+        $currentYear = (int) Carbon::now()->format('Y');
+        $minYear = $currentYear - 10;
+        $maxYear = $currentYear + 5;
+        
+        if ($month === 0 && $year === 0) {
+            $startDate = Carbon::createFromDate($minYear, 1, 1)->startOfYear();
+            $endDate = Carbon::createFromDate($maxYear, 12, 31)->endOfYear();
+        } elseif ($month === 0) {
+            $startDate = Carbon::createFromDate($year, 1, 1)->startOfYear();
+            $endDate = Carbon::createFromDate($year, 12, 31)->endOfYear();
+        } elseif ($year === 0) {
+            $startDate = Carbon::createFromDate($minYear, $month, 1)->startOfMonth();
+            $endDate = Carbon::createFromDate($maxYear, $month, 1)->endOfMonth();
+        } else {
+            $startDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+            $endDate = Carbon::createFromDate($year, $month, 1)->endOfMonth();
         }
         
-        $selectedDate = $this->selectedMonth 
-            ? Carbon::createFromFormat('Y-m', $this->selectedMonth) 
-            : Carbon::now();
+        $query = \App\Models\CalibrationRecord::whereBetween('cal_date', [$startDate, $endDate]);
+        if ($this->selectedLevel) {
+            $query->where('cal_level', $this->selectedLevel);
+        }
+        $count = $query->count();
         
-        $startDate = $selectedDate->copy()->startOfMonth();
-        $endDate = $selectedDate->copy()->endOfMonth();
-        $count = \App\Models\CalibrationRecord::whereBetween('cal_date', [$startDate, $endDate])->count();
+        $levelText = $this->selectedLevel ? " - Level {$this->selectedLevel}" : '';
         
-        return 'เครื่องมือที่สอบเทียบแล้ว - ' . $selectedDate->locale('th')->translatedFormat('F Y') . " ({$count} รายการ)";
+        // สร้างข้อความเดือน/ปี
+        $monthText = $month === 0 ? '(ทั้งหมด)' : Carbon::createFromDate(2024, $month, 1)->locale('th')->translatedFormat('F');
+        $yearText = $year === 0 ? '(ทั้งหมด)' : 'พ.ศ. ' . ($year + 543);
+        
+        return "เครื่องมือที่สอบเทียบแล้ว - {$monthText} {$yearText}{$levelText} ({$count} รายการ)";
     }
 }

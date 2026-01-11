@@ -9,6 +9,7 @@ use Filament\Widgets\TableWidget as BaseWidget;
 use Illuminate\Database\Eloquent\Builder;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\On;
 
 class OverdueInstrumentsWidget extends BaseWidget
 {
@@ -20,22 +21,59 @@ class OverdueInstrumentsWidget extends BaseWidget
 
     protected static string $view = 'filament.widgets.collapsible-table-widget';
 
+    public ?int $selectedMonth = null;
+    public ?int $selectedYear = null;
+    public ?string $selectedLevel = null;
+
+    public function mount(): void
+    {
+        $this->selectedMonth = (int) Carbon::now()->format('m');
+        $this->selectedYear = (int) Carbon::now()->format('Y');
+        $this->selectedLevel = null;
+    }
+
+    #[On('filter-changed')]
+    public function updateFilters($data): void
+    {
+        $this->selectedMonth = $data['month'] ?? $this->selectedMonth;
+        $this->selectedYear = $data['year'] ?? $this->selectedYear;
+        $this->selectedLevel = $data['level'] ?: null;
+        $this->resetTable();
+    }
+
     /**
      * ดึง record IDs ที่เลยกำหนดและยังไม่ได้สอบเทียบ
      */
     private function getOverdueRecordIds(): array
     {
         $today = Carbon::today();
+        $month = $this->selectedMonth ?? (int) Carbon::now()->format('m');
+        $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
         
-        return DB::table('calibration_logs as cl')
+        $query = DB::table('calibration_logs as cl')
             ->leftJoin('calibration_logs as newer', function ($join) {
                 $join->on('newer.instrument_id', '=', 'cl.instrument_id')
                      ->whereColumn('newer.cal_date', '>', 'cl.cal_date');
             })
             ->whereNull('newer.id')
-            ->where('cl.next_cal_date', '<', $today)
-            ->pluck('cl.id')
-            ->toArray();
+            ->where('cl.next_cal_date', '<', $today);
+        
+        // กรองตามเดือน/ปี ของ next_cal_date (วันที่ครบกำหนด)
+        if ($month === 0 && $year === 0) {
+            // ทุกเดือน ทุกปี - ไม่ต้อง filter
+        } elseif ($month === 0) {
+            // ทุกเดือน ปีที่เลือก
+            $query->whereRaw('EXTRACT(YEAR FROM cl.next_cal_date) = ?', [$year]);
+        } elseif ($year === 0) {
+            // เดือนที่เลือก ทุกปี
+            $query->whereRaw('EXTRACT(MONTH FROM cl.next_cal_date) = ?', [$month]);
+        } else {
+            // เดือนและปีที่เลือก
+            $query->whereRaw('EXTRACT(MONTH FROM cl.next_cal_date) = ?', [$month])
+                  ->whereRaw('EXTRACT(YEAR FROM cl.next_cal_date) = ?', [$year]);
+        }
+        
+        return $query->pluck('cl.id')->toArray();
     }
 
     public function table(Table $table): Table
@@ -46,16 +84,21 @@ class OverdueInstrumentsWidget extends BaseWidget
             $overdueIds = [0];
         }
 
+        $query = CalibrationRecord::query()
+            ->with('instrument')
+            ->whereIn('id', $overdueIds)
+            ->orderBy('next_cal_date', 'asc');
+        
+        // Filter by Level if selected
+        if ($this->selectedLevel) {
+            $query->where('cal_level', $this->selectedLevel);
+        }
+
         return $table
             ->heading(false)
-            ->query(
-                CalibrationRecord::query()
-                    ->with('instrument')
-                    ->whereIn('id', $overdueIds)
-                    ->orderBy('next_cal_date', 'asc')
-            )
+            ->query($query)
             ->defaultPaginationPageOption(5)
-            ->paginationPageOptions([5, 10, 25, 50])
+            ->paginationPageOptions([5, 10, 25,])
             ->columns([
                 Tables\Columns\TextColumn::make('instrument.code_no')
                     ->label('รหัสเครื่องมือ')
@@ -126,8 +169,24 @@ class OverdueInstrumentsWidget extends BaseWidget
 
     public function getTableHeading(): string
     {
-        $count = count($this->getOverdueRecordIds());
-        return "เครื่องมือที่เลยกำหนดสอบเทียบ ({$count} รายการ)";
+        $month = $this->selectedMonth ?? (int) Carbon::now()->format('m');
+        $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
+        
+        $overdueIds = $this->getOverdueRecordIds();
+        
+        $query = CalibrationRecord::whereIn('id', $overdueIds);
+        if ($this->selectedLevel) {
+            $query->where('cal_level', $this->selectedLevel);
+        }
+        $count = $query->count();
+        
+        $levelText = $this->selectedLevel ? " - Level {$this->selectedLevel}" : '';
+        
+        // สร้างข้อความเดือน/ปี
+        $monthText = $month === 0 ? '(ทั้งหมด)' : Carbon::createFromDate(2024, $month, 1)->locale('th')->translatedFormat('F');
+        $yearText = $year === 0 ? '(ทั้งหมด)' : 'พ.ศ. ' . ($year + 543);
+        
+        return "เครื่องมือที่เลยกำหนดสอบเทียบ - {$monthText} {$yearText}{$levelText} ({$count} รายการ)";
     }
 
     /**

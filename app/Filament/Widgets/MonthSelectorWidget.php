@@ -3,7 +3,6 @@
 namespace App\Filament\Widgets;
 
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Toggle;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Forms\Form;
@@ -20,103 +19,128 @@ class MonthSelectorWidget extends Widget implements HasForms
     
     protected static ?int $sort = 1;
 
-    public ?string $selectedMonth = null;
-    public ?string $selectedYear = null;
-    public bool $viewByYear = false;
+    public ?int $selectedMonth = null;
+    public ?int $selectedYear = null;
+    public ?string $selectedLevel = null;
 
     public function mount(): void
     {
-        $this->selectedMonth = Carbon::now()->format('Y-m');
-        $this->selectedYear = Carbon::now()->format('Y');
+        $this->selectedMonth = (int) Carbon::now()->format('m');
+        $this->selectedYear = (int) Carbon::now()->format('Y');
+        $this->selectedLevel = null;
+    }
+
+    public function resetFilters(): void
+    {
+        $this->selectedMonth = (int) Carbon::now()->format('m');
+        $this->selectedYear = (int) Carbon::now()->format('Y');
+        $this->selectedLevel = null;
+        $this->dispatchFilters();
+    }
+
+    public function dispatchFilters(): void
+    {
+        $this->dispatch('filter-changed', [
+            'month' => $this->selectedMonth,
+            'year' => $this->selectedYear,
+            'level' => $this->selectedLevel,
+        ]);
     }
 
     public function form(Form $form): Form
     {
         return $form
             ->schema([
-                Toggle::make('viewByYear')
-                    ->label('ดูตามปี')
-                    ->live()
-                    ->afterStateUpdated(function ($state) {
-                        if ($state) {
-                            $this->dispatch('year-changed', year: $this->selectedYear);
-                        } else {
-                            $this->dispatch('month-changed', month: $this->selectedMonth);
-                        }
-                    }),
                 Select::make('selectedMonth')
                     ->label('เลือกเดือน')
                     ->options($this->getMonthOptions())
-                    ->default(Carbon::now()->format('Y-m'))
-                    ->visible(fn ($get) => !$get('viewByYear'))
+                    ->default((int) Carbon::now()->format('m'))
                     ->live()
-                    ->afterStateUpdated(function ($state) {
-                        $this->dispatch('month-changed', month: $state);
-                    }),
+                    ->afterStateUpdated(fn () => $this->dispatchFilters()),
                 Select::make('selectedYear')
                     ->label('เลือกปี')
                     ->options($this->getYearOptions())
-                    ->default(Carbon::now()->format('Y'))
-                    ->visible(fn ($get) => $get('viewByYear'))
+                    ->default((int) Carbon::now()->format('Y'))
                     ->live()
-                    ->afterStateUpdated(function ($state) {
-                        $this->dispatch('year-changed', year: $state);
-                    }),
+                    ->afterStateUpdated(fn () => $this->dispatchFilters()),
+                Select::make('selectedLevel')
+                    ->label('เลือก Level')
+                    ->placeholder('ทั้งหมด')
+                    ->options([
+                        'A' => 'Level A',
+                        'B' => 'Level B',
+                        'C' => 'Level C',
+                    ])
+                    ->live()
+                    ->afterStateUpdated(fn () => $this->dispatchFilters()),
             ])
             ->columns(3);
     }
 
     /**
-     * สร้าง options สำหรับ dropdown เลือกเดือน
+     * สร้าง options สำหรับ dropdown เลือกเดือน (1-12)
      */
-    private function getMonthOptions(): array
+    public function getMonthOptions(): array
     {
-        $options = [];
-        $now = Carbon::now();
-
-        // 24 เดือนก่อนหน้า
-        for ($i = 24; $i >= 1; $i--) {
-            $date = $now->copy()->subMonths($i);
-            $options[$date->format('Y-m')] = $date->locale('th')->translatedFormat('F Y');
-        }
-
-        // เดือนปัจจุบัน
-        $options[$now->format('Y-m')] = $now->locale('th')->translatedFormat('F Y') . ' (เดือนนี้)';
-
-        // 6 เดือนถัดไป
-        for ($i = 1; $i <= 6; $i++) {
-            $date = $now->copy()->addMonths($i);
-            $options[$date->format('Y-m')] = $date->locale('th')->translatedFormat('F Y');
-        }
-
-        return $options;
+        $currentMonth = (int) Carbon::now()->format('m');
+        
+        $months = [
+            0 => 'ทั้งหมด',
+            1 => 'มกราคม',
+            2 => 'กุมภาพันธ์',
+            3 => 'มีนาคม',
+            4 => 'เมษายน',
+            5 => 'พฤษภาคม',
+            6 => 'มิถุนายน',
+            7 => 'กรกฎาคม',
+            8 => 'สิงหาคม',
+            9 => 'กันยายน',
+            10 => 'ตุลาคม',
+            11 => 'พฤศจิกายน',
+            12 => 'ธันวาคม',
+        ];
+        
+        // เพิ่ม (เดือนนี้) ให้เดือนปัจจุบัน
+        $months[$currentMonth] .= ' (เดือนนี้)';
+        
+        return $months;
     }
 
     /**
      * สร้าง options สำหรับ dropdown เลือกปี
      */
-    private function getYearOptions(): array
+    public function getYearOptions(): array
     {
         $options = [];
-        $now = Carbon::now();
+        $currentYear = (int) Carbon::now()->format('Y');
         
-        // 10 ปีก่อนหน้า
-        for ($i = 10; $i >= 1; $i--) {
-            $year = $now->copy()->subYears($i)->format('Y');
-            $thaiYear = (int)$year + 543;
-            $options[$year] = "พ.ศ. {$thaiYear} ({$year})";
-        }
+        // ตัวเลือก "ทั้งหมด"
+        $options[0] = 'ทั้งหมด';
         
-        // ปีปัจจุบัน
-        $currentYear = $now->format('Y');
-        $currentThaiYear = (int)$currentYear + 543;
-        $options[$currentYear] = "พ.ศ. {$currentThaiYear} ({$currentYear}) (ปีนี้)";
-
-        // 2 ปีถัดไป
-        for ($i = 1; $i <= 2; $i++) {
-            $year = $now->copy()->addYears($i)->format('Y');
-            $thaiYear = (int)$year + 543;
-            $options[$year] = "พ.ศ. {$thaiYear} ({$year})";
+        // ดึงปีจากฐานข้อมูล (cal_date และ next_cal_date)
+        $yearsFromCalDate = \Illuminate\Support\Facades\DB::table('calibration_logs')
+            ->selectRaw('DISTINCT EXTRACT(YEAR FROM cal_date) as year')
+            ->whereNotNull('cal_date')
+            ->pluck('year')
+            ->toArray();
+            
+        $yearsFromNextCalDate = \Illuminate\Support\Facades\DB::table('calibration_logs')
+            ->selectRaw('DISTINCT EXTRACT(YEAR FROM next_cal_date) as year')
+            ->whereNotNull('next_cal_date')
+            ->pluck('year')
+            ->toArray();
+        
+        // รวมปีทั้งหมดและเรียงลำดับ
+        $allYears = array_unique(array_merge($yearsFromCalDate, $yearsFromNextCalDate));
+        sort($allYears);
+        
+        foreach ($allYears as $year) {
+            $year = (int) $year;
+            $thaiYear = $year + 543;
+            $label = $year === $currentYear 
+                ? "พ.ศ. {$thaiYear} (ปีนี้)" 
+                : "พ.ศ. {$thaiYear}";
+            $options[$year] = $label;
         }
 
         return $options;

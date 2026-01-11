@@ -166,7 +166,7 @@ class InstrumentResource extends Resource
                                 ->native(false)
                                 ->required(),
                             
-
+                            // ฟิลด์นี้อาจคำนวณอัตโนมัติในอนาคต แต่ตอนนี้ให้กรอกได้ก่อน
                             TextInput::make('cal_freq_months')
                                 ->label('ความถี่ (เดือน)')
                                 ->numeric()
@@ -175,13 +175,6 @@ class InstrumentResource extends Resource
                                 ->suffix('เดือน')
                                 ->required(),
                             
-                            // ฟิลด์นี้อาจคำนวณอัตโนมัติในอนาคต แต่ตอนนี้ให้กรอกได้ก่อน
-                            DatePicker::make('next_cal_date')
-                                ->label('วันครบกำหนด (Due Date)')
-                                ->columnSpan(2)
-                                ->displayFormat('d/m/Y') // แสดงผลแบบไทยๆ
-                                ->native(false), // ใช้ Datepicker สวยๆ ของ Filament
-
                             TextInput::make('range_spec')
                                 ->columnSpan(2)
                                 ->label('การใช้งาน (Range)'),

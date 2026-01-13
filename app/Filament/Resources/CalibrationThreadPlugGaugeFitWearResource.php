@@ -38,10 +38,10 @@ class CalibrationThreadPlugGaugeFitWearResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        // 🔥 กรอง Thread Plug Gauge Fit Wear: ใช้ calibration_type ใน JSON
+        // 🔥 กรอง Thread Plug Gauge Fit Wear: ใช้ calibration_type column (มี index)
         return parent::getEloquentQuery()
             ->with(['instrument.toolType'])
-            ->whereRaw("calibration_data->>'calibration_type' = 'ThreadPlugGaugeFitWear'");
+            ->where('calibration_type', 'ThreadPlugGaugeFitWear');
     } 
 
     public static function form(Form $form): Form
@@ -139,7 +139,8 @@ class CalibrationThreadPlugGaugeFitWearResource extends Resource
                                                 }
                                             }
                                     
-                                            // 🔥 เพิ่ม calibration_type สำหรับแยกประเภท
+                                            // 🔥 เพิ่ม calibration_type สำหรับแยกประเภท (ทั้ง column และ JSON)
+                                            $set('calibration_type', 'ThreadPlugGaugeFitWear');
                                             $set('calibration_data.calibration_type', 'ThreadPlugGaugeFitWear');
                                             $set('calibration_data.readings', $readings);
                                         }

@@ -219,6 +219,7 @@ class CalibrationRecordResource extends Resource
                         };
                         
                         if ($calibrationType) {
+                            $set('calibration_type', $calibrationType); // 🔥 column ใหม่
                             $set('calibration_data.calibration_type', $calibrationType);
                         }
                     })

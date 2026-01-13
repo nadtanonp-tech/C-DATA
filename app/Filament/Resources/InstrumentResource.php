@@ -111,6 +111,7 @@ class InstrumentResource extends Resource
                         FileUpload::make('instrument_image')
                             ->label('รูปภาพเครื่องมือ')
                             ->image() // บังคับว่าเป็นไฟล์รูปเท่านั้น
+                            ->disk('public') // ✅ เก็บใน public disk เพื่อให้เข้าถึงได้จาก browser
                             ->directory('instrument-photos') // เก็บในโฟลเดอร์ชื่อนี้
                             ->visibility('public') // ให้คนทั่วไปเห็นรูปได้
                             ->imageEditor(), // (แถม) มีปุ่ม Crop/Rotate รูปให้ด้วย!
@@ -266,6 +267,7 @@ class InstrumentResource extends Resource
                 // 1. รูปภาพเครื่องมือ
                 ImageColumn::make('instrument_image')
                     ->label('Image')
+                    ->disk('public') // ✅ ต้องตรงกับ FileUpload disk
                     ->circular()
                     ->toggleable(isToggledHiddenByDefault: true),
                 // 2. รหัสทรัพย์สิน (ค้นหาได้ + ก๊อปปี้ได้)

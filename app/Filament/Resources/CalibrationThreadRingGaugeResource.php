@@ -35,10 +35,10 @@ class CalibrationThreadRingGaugeResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        // 🔥 กรอง Thread Ring Gauge: ใช้ calibration_type ใน JSON
+        // 🔥 กรอง Thread Ring Gauge: ใช้ calibration_type column (มี index)
         return parent::getEloquentQuery()
             ->with(['instrument.toolType'])
-            ->whereRaw("calibration_data->>'calibration_type' = 'ThreadRingGauge'");
+            ->where('calibration_type', 'ThreadRingGauge');
     } 
 
     public static function form(Form $form): Form
@@ -119,7 +119,8 @@ class CalibrationThreadRingGaugeResource extends Resource
                                                 }
                                             }
                                     
-                                            // 🔥 เพิ่ม calibration_type สำหรับแยกประเภท
+                                            // 🔥 เพิ่ม calibration_type สำหรับแยกประเภท (ทั้ง column และ JSON)
+                                            $set('calibration_type', 'ThreadRingGauge');
                                             $set('calibration_data.calibration_type', 'ThreadRingGauge');
                                             $set('calibration_data.readings', $readings);
                                         }

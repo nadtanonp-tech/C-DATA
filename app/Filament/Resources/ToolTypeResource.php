@@ -65,14 +65,14 @@ class ToolTypeResource extends Resource
                                 ->required(),
 
                             TextInput::make('size')
-                            ->columnSpan(2)
+                                ->columnSpan(2)
                                 ->label('ขนาด (Size Type)'),
 
-                            TextInput::make('range')
-                            ->columnSpan(2)
+                        Grid::make(3)->schema([
+                            Textarea::make('range')
                                 ->label('การใช้งาน (Range)')
                                 ->required()
-                                ->afterStateHydrated(function (TextInput $component, $state, $record) {
+                                ->afterStateHydrated(function (Textarea $component, $state, $record) {
                                     $value = '';
                                     if ($record && is_array($record->criteria_unit)) {
                                         foreach ($record->criteria_unit as $item) {
@@ -85,105 +85,18 @@ class ToolTypeResource extends Resource
                                     $component->state($value);
                                 })
                                 ->hidden(fn ($livewire) => data_get($livewire->data ?? [], 'is_kgauge') || data_get($livewire->data ?? [], 'is_snap_gauge') || data_get($livewire->data ?? [], 'is_plug_gauge') || data_get($livewire->data ?? [], 'is_thread_plug_gauge') || data_get($livewire->data ?? [], 'is_thread_ring_gauge') || data_get($livewire->data ?? [], 'is_serration_plug_gauge') || data_get($livewire->data ?? [], 'is_serration_ring_gauge') || data_get($livewire->data ?? [], 'is_thread_plug_gauge_for_checking_fit_wear') || data_get($livewire->data ?? [], 'is_serration_plug_gauge_for_checking_fit_wear')),
-                            
-                            TextInput::make('criteria_1')
-                                ->label('เกณฑ์ในการยอมรับค่าบวก (Criteria 1)')
-                                ->numeric()
-                                ->minValue(0)
-                                ->helperText(new \Illuminate\Support\HtmlString('<span style="color: red;">หมายเหตุ: Criteria ใช้คํานวณ Instrument เท่านั้น</span>'))
-                                ->columnSpan(2)
-                                ->suffix(fn (Forms\Get $get) => $get('criteria_unit_selection') ?? '%F.S')
-                                ->default('0.00')
-                                ->afterStateHydrated(function (TextInput $component, $state, $record) {
-                                    $value = '0.00';
-                                    if ($record && is_array($record->criteria_unit)) {
-                                        foreach ($record->criteria_unit as $item) {
-                                            if (($item['index'] ?? 0) == 1) {
-                                                $value = $item['criteria_1'] ?? '0.00';
-                                                break;
-                                            }
-                                        }
-                                    }
-                                    $component->state($value);
-                                })
-                                // ตอนเซฟ (Dehydrate) ให้ยัดกลับเข้าไปใน JSON ตัวเดิม (ถ้ามี) หรือสร้างใหม่
-                                ->hidden(fn ($livewire) => data_get($livewire->data ?? [], 'is_kgauge') || data_get($livewire->data ?? [], 'is_snap_gauge') || data_get($livewire->data ?? [], 'is_plug_gauge') || data_get($livewire->data ?? [], 'is_thread_plug_gauge') || data_get($livewire->data ?? [], 'is_thread_ring_gauge') || data_get($livewire->data ?? [], 'is_serration_plug_gauge') || data_get($livewire->data ?? [], 'is_serration_ring_gauge') || data_get($livewire->data ?? [], 'is_thread_plug_gauge_for_checking_fit_wear') || data_get($livewire->data ?? [], 'is_serration_plug_gauge_for_checking_fit_wear')), 
 
-                            TextInput::make('criteria_2')
-                                ->label('เกณฑ์ในการยอมรับค่าลบ (Criteria 2)')
-                                ->numeric()
-                                ->maxValue(0)
-                                ->columnSpan(2)
-                                ->suffix(fn (Forms\Get $get) => $get('criteria_unit_selection') ?? '%F.S')
-                                ->default('-0.00')
-                                ->afterStateHydrated(function (TextInput $component, $state, $record) {
-                                    $value = '-0.00';
-                                    if ($record && is_array($record->criteria_unit)) {
-                                        foreach ($record->criteria_unit as $item) {
-                                            if (($item['index'] ?? 0) == 1) {
-                                                $value = $item['criteria_2'] ?? '-0.00';
-                                                break;
-                                            }
-                                        }
-                                    }
-                                    $component->state($value);
-                                })
-                                ->hidden(fn ($livewire) => data_get($livewire->data ?? [], 'is_kgauge') || data_get($livewire->data ?? [], 'is_snap_gauge') || data_get($livewire->data ?? [], 'is_plug_gauge') || data_get($livewire->data ?? [], 'is_thread_plug_gauge') || data_get($livewire->data ?? [], 'is_thread_ring_gauge') || data_get($livewire->data ?? [], 'is_serration_plug_gauge') || data_get($livewire->data ?? [], 'is_serration_ring_gauge') || data_get($livewire->data ?? [], 'is_thread_plug_gauge_for_checking_fit_wear') || data_get($livewire->data ?? [], 'is_serration_plug_gauge_for_checking_fit_wear')),
-
-                            // เปลี่ยนชื่อ field เป็น criteria_unit_selection เพื่อไม่ให้ชนกับ column criteria_unit (ที่เป็น JSON)
-                            Select::make('criteria_unit_selection')
-                                ->label('หน่วย (Unit)')
-                                ->options([
-                                    '%f.s' => '%f.s',
-                                    'mm.' => 'mm.',
-                                    'kgf.cm' => 'kgf.cm',
-                                    'um' => 'um',
-                                    'g' => 'g',
-                                    'kg' => 'kg',
-                                    '% RH' => '% RH',
-                                    'L/min' => 'L/min',
-                                    '%' => '%',
-                                    'kgf/cm2' => 'kgf/cm2',
-                                    'sec' => 'sec',
-                                    'V' => 'V',
-                                    'A' => 'A',
-                                    'Degree' => 'Degree',
-                                    'Lux' => 'Lux',
-                                    'N.m' => 'N.m',
-                                    'm N/m' => 'm N/m',
-                                    'ml' => 'ml',
-                                    'cm-1' => 'cm-1',
-                                    'kg/cm2' => 'kg/cm2',
-                                    'HRC' => 'HRC',
-                                    'mv' => 'mv',
-                                    
-                                ])
-                                ->default('%F.S')
-                                ->live()
-                                ->native(false)
-                                ->required()
-                                ->afterStateHydrated(function (Select $component, $record) {
-                                    $value = '%F.S';
-                                    if ($record && is_array($record->criteria_unit)) {
-                                        foreach ($record->criteria_unit as $item) {
-                                            if (($item['index'] ?? 0) == 1) {
-                                                $value = $item['unit'] ?? '%F.S';
-                                                break;
-                                            }
-                                        }
-                                    }
-                                    $component->state($value);
-                                })
-                                ->hidden(fn ($livewire) => data_get($livewire->data ?? [], 'is_kgauge') || data_get($livewire->data ?? [], 'is_snap_gauge') || data_get($livewire->data ?? [], 'is_plug_gauge') || data_get($livewire->data ?? [], 'is_thread_plug_gauge') || data_get($livewire->data ?? [], 'is_thread_ring_gauge') || data_get($livewire->data ?? [], 'is_serration_plug_gauge') || data_get($livewire->data ?? [], 'is_serration_ring_gauge') || data_get($livewire->data ?? [], 'is_thread_plug_gauge_for_checking_fit_wear') || data_get($livewire->data ?? [], 'is_serration_plug_gauge_for_checking_fit_wear')),
-                        ]),
-                        
-
-                        Grid::make(4)->schema([
                             Textarea::make('remark')
                                 ->label('หมายเหตุ (remark)'),
-                            
+                    
                             Textarea::make('reference_doc')
                                 ->label('Reference document'),
+                            
+                        ]),
+                    ]),
+
+                        Grid::make(1)->schema([
+                            
                             
                             FileUpload::make('picture_path')
                                 ->label('รูปภาพอ้างอิง (Drawing Reference)')
@@ -204,7 +117,7 @@ class ToolTypeResource extends Resource
                             ->itemLabel(fn (array $state): ?string => 'Point ' . ($state['point'] ?? '?'))
                             ->schema([
                                 // --- ส่วนหัวของแต่ละตาราง (ชื่อตาราง + แนวโน้ม) ---
-                        Grid::make(2)->schema([
+                        Grid::make(4)->schema([
                             TextInput::make('point')
                                 ->label('ชื่อจุดตรวจสอบ (เช่น A, B, C)')
                                 ->required()

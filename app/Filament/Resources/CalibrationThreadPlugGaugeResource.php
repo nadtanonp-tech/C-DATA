@@ -38,10 +38,10 @@ class CalibrationThreadPlugGaugeResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        // 🔥 กรอง Thread Plug Gauge: ใช้ calibration_type ใน JSON
+        // 🔥 กรอง Thread Plug Gauge: ใช้ calibration_type column (มี index)
         return parent::getEloquentQuery()
             ->with(['instrument.toolType'])
-            ->whereRaw("calibration_data->>'calibration_type' = 'ThreadPlugGauge'");
+            ->where('calibration_type', 'ThreadPlugGauge');
     } 
 
     public static function form(Form $form): Form
@@ -138,7 +138,8 @@ class CalibrationThreadPlugGaugeResource extends Resource
                                                 }
                                             }
                                     
-                                            // 🔥 เพิ่ม calibration_type สำหรับแยกประเภท
+                                            // 🔥 เพิ่ม calibration_type สำหรับแยกประเภท (ทั้ง column และ JSON)
+                                            $set('calibration_type', 'ThreadPlugGauge');
                                             $set('calibration_data.calibration_type', 'ThreadPlugGauge');
                                             $set('calibration_data.readings', $readings);
                                         }
@@ -404,6 +405,7 @@ class CalibrationThreadPlugGaugeResource extends Resource
                                 ->visible(fn (Get $get) => $get('result_status') !== 'Reject' && $get('cal_level') !== 'C')
                                 ->required(fn (Get $get) => $get('result_status') !== 'Reject' && $get('cal_level') !== 'C')
                                 ->live()
+                                ->native(false)
                                 ->afterStateUpdated(function ($state, Get $get) {
                                     $calDate = $get('cal_date');
                                     $instrumentId = $get('instrument_id');

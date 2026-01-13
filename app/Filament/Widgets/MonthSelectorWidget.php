@@ -27,14 +27,14 @@ class MonthSelectorWidget extends Widget implements HasForms
     {
         $this->selectedMonth = (int) Carbon::now()->format('m');
         $this->selectedYear = (int) Carbon::now()->format('Y');
-        $this->selectedLevel = null;
+        $this->selectedLevel = 'all';
     }
 
     public function resetFilters(): void
     {
         $this->selectedMonth = (int) Carbon::now()->format('m');
         $this->selectedYear = (int) Carbon::now()->format('Y');
-        $this->selectedLevel = null;
+        $this->selectedLevel = 'all';
         $this->dispatchFilters();
     }
 
@@ -43,7 +43,7 @@ class MonthSelectorWidget extends Widget implements HasForms
         $this->dispatch('filter-changed', [
             'month' => $this->selectedMonth,
             'year' => $this->selectedYear,
-            'level' => $this->selectedLevel,
+            'level' => $this->selectedLevel === 'all' ? null : $this->selectedLevel,
         ]);
     }
 
@@ -53,28 +53,32 @@ class MonthSelectorWidget extends Widget implements HasForms
             ->schema([
                 Select::make('selectedMonth')
                     ->label('เลือกเดือน')
+                    ->native(false)
                     ->options($this->getMonthOptions())
                     ->default((int) Carbon::now()->format('m'))
                     ->live()
                     ->afterStateUpdated(fn () => $this->dispatchFilters()),
                 Select::make('selectedYear')
                     ->label('เลือกปี')
+                    ->native(false)
                     ->options($this->getYearOptions())
                     ->default((int) Carbon::now()->format('Y'))
                     ->live()
                     ->afterStateUpdated(fn () => $this->dispatchFilters()),
                 Select::make('selectedLevel')
                     ->label('เลือก Level')
-                    ->placeholder('ทั้งหมด')
+                    ->native(false)
                     ->options([
+                        'all' => 'ทั้งหมด',
                         'A' => 'Level A',
                         'B' => 'Level B',
                         'C' => 'Level C',
                     ])
+                    ->default('all')
                     ->live()
                     ->afterStateUpdated(fn () => $this->dispatchFilters()),
             ])
-            ->columns(3);
+            ->columns(5);
     }
 
     /**

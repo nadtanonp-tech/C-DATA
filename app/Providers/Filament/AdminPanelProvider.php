@@ -37,6 +37,10 @@ class AdminPanelProvider extends PanelProvider
             ->darkModeBrandLogo(asset('apple-touch-logo12.png'))
             ->brandLogoHeight('4.6rem')
             ->favicon(asset('favicon.ico'))
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::GLOBAL_SEARCH_AFTER,
+                fn (): string => \Illuminate\Support\Facades\Blade::render('@livewire(\'quick-create-menu\')'),
+            )
             ->navigationGroups([
                 'Instrument & Types Data',
                 'Calibration Report',

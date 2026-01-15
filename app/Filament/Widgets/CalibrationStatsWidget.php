@@ -3,7 +3,6 @@
 namespace App\Filament\Widgets;
 
 use App\Models\CalibrationRecord;
-use App\Models\Instrument;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Carbon\Carbon;
@@ -171,9 +170,6 @@ class CalibrationStatsWidget extends BaseWidget
         // นับจำนวนเครื่องมือที่สอบเทียบแล้ว
         $calibratedCount = $this->countCalibrated($startDate, $endDate);
 
-        // นับจำนวนเครื่องมือทั้งหมด
-        $totalInstruments = Instrument::count();
-
         return [
             Stat::make('ครบกำหนด', $dueCount)
                 ->description("เครื่องมือที่ต้องสอบเทียบ {$dateLabel}{$levelLabel}")
@@ -187,10 +183,6 @@ class CalibrationStatsWidget extends BaseWidget
                 ->description("เครื่องมือที่เลยกำหนดสอบเทียบ{$levelLabel}")
                 ->descriptionIcon('heroicon-m-exclamation-triangle')
                 ->color($overdueCount > 0 ? 'danger' : 'success'),
-            Stat::make('เครื่องมือทั้งหมด', $totalInstruments)
-                ->description('จำนวนเครื่องมือในระบบ')
-                ->descriptionIcon('heroicon-m-wrench-screwdriver')
-                ->color('gray'),
         ];
     }
 }

@@ -55,16 +55,12 @@ class MonthSelectorWidget extends Widget implements HasForms
                     ->label('เลือกเดือน')
                     ->native(false)
                     ->options($this->getMonthOptions())
-                    ->default((int) Carbon::now()->format('m'))
-                    ->live()
-                    ->afterStateUpdated(fn () => $this->dispatchFilters()),
+                    ->default((int) Carbon::now()->format('m')),
                 Select::make('selectedYear')
                     ->label('เลือกปี')
                     ->native(false)
                     ->options($this->getYearOptions())
-                    ->default((int) Carbon::now()->format('Y'))
-                    ->live()
-                    ->afterStateUpdated(fn () => $this->dispatchFilters()),
+                    ->default((int) Carbon::now()->format('Y')),
                 Select::make('selectedLevel')
                     ->label('เลือก Level')
                     ->native(false)
@@ -74,9 +70,7 @@ class MonthSelectorWidget extends Widget implements HasForms
                         'B' => 'Level B',
                         'C' => 'Level C',
                     ])
-                    ->default('all')
-                    ->live()
-                    ->afterStateUpdated(fn () => $this->dispatchFilters()),
+                    ->default('all'),
             ])
             ->columns(5);
     }

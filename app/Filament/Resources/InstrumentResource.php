@@ -32,7 +32,6 @@ class InstrumentResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-wrench-screwdriver'; // เปลี่ยนไอคอนได้
     protected static ?string $navigationLabel = 'ทะเบียนเครื่องมือ (Instrument)';
-    protected static ?string $navigationGroup = 'Instrument & Types Data';
     protected static ?string $modelLabel = 'Instrument';
 
     public static function getEloquentQuery(): Builder

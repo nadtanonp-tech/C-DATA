@@ -25,6 +25,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Actions;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use App\Filament\Clusters\CalibrationReport;
 
 class CalibrationKNewResource extends Resource
 {
@@ -33,6 +34,7 @@ class CalibrationKNewResource extends Resource
 
     protected static ?string $navigationLabel = 'K-Gauge';
     protected static ?string $navigationGroup = 'Gauge Cal Report & Data';
+    protected static ?string $cluster = CalibrationReport::class;
     protected static ?string $modelLabel = 'K-Gauge';
     protected static ?int $navigationSort = 1;
 

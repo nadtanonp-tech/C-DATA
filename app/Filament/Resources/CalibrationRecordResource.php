@@ -21,6 +21,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Actions;
+use App\Filament\Clusters\CalibrationReport;
 
 class CalibrationRecordResource extends Resource
 {
@@ -30,6 +31,7 @@ class CalibrationRecordResource extends Resource
     protected static ?string $navigationLabel = 'Instrument Calibration';
     protected static ?string $modelLabel = 'Instrument Calibration';
     protected static ?string $navigationGroup = 'Instrument Cal Report & Data';
+    protected static ?string $cluster = CalibrationReport::class; 
     protected static ?int $navigationSort = 1;
     protected static ?string $slug = 'instrument-calibration';
 

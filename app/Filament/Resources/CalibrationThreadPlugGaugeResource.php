@@ -25,6 +25,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Actions;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use App\Filament\Clusters\CalibrationReport;
 
 class CalibrationThreadPlugGaugeResource extends Resource
 {
@@ -33,6 +34,7 @@ class CalibrationThreadPlugGaugeResource extends Resource
 
     protected static ?string $navigationLabel = 'Thread & Serration Plug Gauge';
     protected static ?string $navigationGroup = 'Gauge Cal Report & Data';
+    protected static ?string $cluster = CalibrationReport::class;
     protected static ?string $modelLabel = 'Thread Plug Gauge';
     protected static ?int $navigationSort = 4;
 

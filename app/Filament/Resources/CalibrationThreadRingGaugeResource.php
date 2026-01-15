@@ -383,7 +383,8 @@ class CalibrationThreadRingGaugeResource extends Resource
     {
         return $table
             ->defaultPaginationPageOption(10)
-            ->paginationPageOptions([10, 25])
+            ->paginationPageOptions([10, 25, 50, 100, 500])
+            ->deferLoading()
             ->columns([
                 TextColumn::make('instrument.code_no')
                     ->label('ID Code Instrument')

@@ -5,6 +5,7 @@ namespace App\Filament\Widgets;
 use App\Models\CalibrationRecord;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
+use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\On;
@@ -12,6 +13,9 @@ use Livewire\Attributes\On;
 class CalibrationStatsWidget extends BaseWidget
 {
     protected static ?int $sort = 0;
+    
+    // 🚀 Lazy loading - ทำให้ widget โหลดแบบ async ไม่บล็อค navigation
+    protected static bool $isLazy = true;
 
     public ?int $selectedMonth = null;
     public ?int $selectedYear = null;
@@ -160,29 +164,34 @@ class CalibrationStatsWidget extends BaseWidget
         [$startDate, $endDate] = $this->getDateRange();
         $dateLabel = $this->getDateLabel();
         $levelLabel = $this->selectedLevel ? " Level {$this->selectedLevel}" : '';
-
-        // นับจำนวนเครื่องมือที่ครบกำหนด
-        $dueCount = $this->countDueRecords($startDate, $endDate);
-
-        // นับจำนวนเครื่องมือที่เลยกำหนด
-        $overdueCount = $this->countOverdue();
-
-        // นับจำนวนเครื่องมือที่สอบเทียบแล้ว
-        $calibratedCount = $this->countCalibrated($startDate, $endDate);
+        
+        $month = $this->selectedMonth ?? (int) Carbon::now()->format('m');
+        $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
+        $level = $this->selectedLevel ?? '';
+        
+        // 🚀 ใช้ cache เพื่อไม่ต้อง query นับจำนวนทุกครั้ง (cache 5 นาที)
+        $cacheKey = "stats_counts_{$month}_{$year}_{$level}";
+        $counts = Cache::remember($cacheKey, 300, function () use ($startDate, $endDate) {
+            return [
+                'due' => $this->countDueRecords($startDate, $endDate),
+                'overdue' => $this->countOverdue(),
+                'calibrated' => $this->countCalibrated($startDate, $endDate),
+            ];
+        });
 
         return [
-            Stat::make('ครบกำหนด', $dueCount)
+            Stat::make('ครบกำหนด', $counts['due'])
                 ->description("เครื่องมือที่ต้องสอบเทียบ {$dateLabel}{$levelLabel}")
                 ->descriptionIcon('heroicon-m-calendar')
                 ->color('primary'),
-            Stat::make('สอบเทียบแล้ว', $calibratedCount)
+            Stat::make('สอบเทียบแล้ว', $counts['calibrated'])
                 ->description("เครื่องมือที่สอบเทียบแล้ว {$dateLabel}{$levelLabel}")
                 ->descriptionIcon('heroicon-m-check-circle')
                 ->color('success'),
-            Stat::make('เลยกำหนด', $overdueCount)
+            Stat::make('เลยกำหนด', $counts['overdue'])
                 ->description("เครื่องมือที่เลยกำหนดสอบเทียบ{$levelLabel}")
                 ->descriptionIcon('heroicon-m-exclamation-triangle')
-                ->color($overdueCount > 0 ? 'danger' : 'success'),
+                ->color($counts['overdue'] > 0 ? 'danger' : 'success'),
         ];
     }
 }

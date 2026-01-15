@@ -56,8 +56,24 @@ class ImportCalVernierCaliperDigitalSeeder extends Seeder
             // ดึง dimension_specs และ criteria_unit จาก tool_type
             $toolType = DB::table('tool_types')
                         ->where('id', $instrument->tool_type_id)
-                        ->select('dimension_specs', 'criteria_unit')
+                        ->select('name', 'dimension_specs', 'criteria_unit')
                         ->first();
+            
+            // 🔥 กำหนด calibration_type จากชื่อ ToolType
+            $toolTypeName = $toolType->name ?? '';
+            
+            // ข้าม ToolType ที่มีคำว่า "Special" (จะ import จาก ImportCalVernierOtherSeeder)
+            if (stripos($toolTypeName, 'Special') !== false) {
+                $skipCount++;
+                continue;
+            }
+            
+            // กำหนด calibration_type
+            if (stripos($toolTypeName, 'Digital') !== false) {
+                $calibrationType = 'VernierDigital';
+            } else {
+                $calibrationType = 'VernierCaliper';
+            }
             
             $dimensionSpecs = $toolType ? json_decode($toolType->dimension_specs, true) : [];
             $criteriaUnit = $toolType ? json_decode($toolType->criteria_unit, true) : [];
@@ -96,7 +112,7 @@ class ImportCalVernierCaliperDigitalSeeder extends Seeder
             
             // 🔥 สร้าง calibration_data (ตรง structure กับเว็บ)
             $calData = [
-                'calibration_type' => 'VernierCaliperDigital',
+                'calibration_type' => $calibrationType,
             ];
             
             if (!empty($readings)) {
@@ -124,6 +140,7 @@ class ImportCalVernierCaliperDigitalSeeder extends Seeder
                 'cal_date'      => $this->parseDate($row->CalDate ?? null),
                 'next_cal_date' => $this->parseDate($row->DueDate ?? null),
                 'cal_place'     => 'Internal',
+                'calibration_type' => $calibrationType,
                 'calibration_data' => json_encode($calData, JSON_UNESCAPED_UNICODE),
                 
                 'environment'   => json_encode([

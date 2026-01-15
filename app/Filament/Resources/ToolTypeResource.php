@@ -226,7 +226,8 @@ class ToolTypeResource extends Resource
     {
         return $table
             ->defaultPaginationPageOption(10)
-            ->paginationPageOptions([10, 25])
+            ->paginationPageOptions([10, 25, 50, 100, 500])
+            ->deferLoading()
             ->columns([
                 TextColumn::make('code_type')
                     ->label('ID Code Type')
@@ -260,6 +261,9 @@ class ToolTypeResource extends Resource
                     ->preload(),
                 Tables\Filters\TernaryFilter::make('has_instruments')
                     ->label('มีเครื่องมือใช้งาน')
+                    ->placeholder('All')
+                    ->trueLabel('ใช้งาน')
+                    ->falseLabel('ไม่ใช้งาน')
                     ->queries(
                         true: fn ($query) => $query->has('instruments'),
                         false: fn ($query) => $query->doesntHave('instruments'),

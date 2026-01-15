@@ -7,6 +7,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
 use Livewire\Attributes\On;
 
@@ -87,14 +88,14 @@ class CalibratedThisMonthWidget extends BaseWidget
             ->paginationPageOptions([5, 10, 25])
             ->columns([
                 Tables\Columns\TextColumn::make('instrument.code_no')
-                    ->label('รหัสเครื่องมือ')
+                    ->label('ID Code Instrument')
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('instrument.name')
-                    ->label('ชื่อเครื่องมือ')
+                    ->label('ID Code Type')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('instrument.serial_no')
-                    ->label('Serial No.')
+                Tables\Columns\TextColumn::make('instrument.toolType.name')
+                    ->label('Type Name')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('cal_date')
                     ->label('วันที่สอบเทียบ')
@@ -134,31 +135,35 @@ class CalibratedThisMonthWidget extends BaseWidget
     {
         $month = $this->selectedMonth ?? (int) Carbon::now()->format('m');
         $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
+        $level = $this->selectedLevel ?? '';
         
-        // กรณีต่างๆ ของ month/year
-        $currentYear = (int) Carbon::now()->format('Y');
-        $minYear = $currentYear - 10;
-        $maxYear = $currentYear + 5;
-        
-        if ($month === 0 && $year === 0) {
-            $startDate = Carbon::createFromDate($minYear, 1, 1)->startOfYear();
-            $endDate = Carbon::createFromDate($maxYear, 12, 31)->endOfYear();
-        } elseif ($month === 0) {
-            $startDate = Carbon::createFromDate($year, 1, 1)->startOfYear();
-            $endDate = Carbon::createFromDate($year, 12, 31)->endOfYear();
-        } elseif ($year === 0) {
-            $startDate = Carbon::createFromDate($minYear, $month, 1)->startOfMonth();
-            $endDate = Carbon::createFromDate($maxYear, $month, 1)->endOfMonth();
-        } else {
-            $startDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
-            $endDate = Carbon::createFromDate($year, $month, 1)->endOfMonth();
-        }
-        
-        $query = \App\Models\CalibrationRecord::whereBetween('cal_date', [$startDate, $endDate]);
-        if ($this->selectedLevel) {
-            $query->where('cal_level', $this->selectedLevel);
-        }
-        $count = $query->count();
+        // 🚀 ใช้ cache เพื่อไม่ต้อง query นับจำนวนทุกครั้ง (cache 5 นาที)
+        $cacheKey = "calibrated_count_{$month}_{$year}_{$level}";
+        $count = Cache::remember($cacheKey, 300, function () use ($month, $year) {
+            $currentYear = (int) Carbon::now()->format('Y');
+            $minYear = $currentYear - 10;
+            $maxYear = $currentYear + 5;
+            
+            if ($month === 0 && $year === 0) {
+                $startDate = Carbon::createFromDate($minYear, 1, 1)->startOfYear();
+                $endDate = Carbon::createFromDate($maxYear, 12, 31)->endOfYear();
+            } elseif ($month === 0) {
+                $startDate = Carbon::createFromDate($year, 1, 1)->startOfYear();
+                $endDate = Carbon::createFromDate($year, 12, 31)->endOfYear();
+            } elseif ($year === 0) {
+                $startDate = Carbon::createFromDate($minYear, $month, 1)->startOfMonth();
+                $endDate = Carbon::createFromDate($maxYear, $month, 1)->endOfMonth();
+            } else {
+                $startDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+                $endDate = Carbon::createFromDate($year, $month, 1)->endOfMonth();
+            }
+            
+            $query = CalibrationRecord::whereBetween('cal_date', [$startDate, $endDate]);
+            if ($this->selectedLevel) {
+                $query->where('cal_level', $this->selectedLevel);
+            }
+            return $query->count();
+        });
         
         $levelText = $this->selectedLevel ? " - Level {$this->selectedLevel}" : '';
         

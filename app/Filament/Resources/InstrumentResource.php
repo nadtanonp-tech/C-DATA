@@ -261,7 +261,8 @@ class InstrumentResource extends Resource
     {
         return $table
             ->defaultPaginationPageOption(10)
-            ->paginationPageOptions([10, 25])
+            ->paginationPageOptions([10, 25, 50, 100, 500])
+            ->deferLoading()
             ->columns([
                 // 1. รูปภาพเครื่องมือ
                 ImageColumn::make('instrument_image')
@@ -349,7 +350,7 @@ class InstrumentResource extends Resource
                     ->label('สถานะ')
                     ->options([
                         'ใช้งาน' => 'Active (ใช้งาน)',
-                        'Spare' => 'Spare',
+                        'Spare' => 'Spare (สำรอง)',
                         'ยกเลิก' => 'Inactive (ยกเลิก)',
                         'ส่งซ่อม' => 'Repair (ส่งซ่อม)',
                         'สูญหาย' => 'Lost (สูญหาย)',

@@ -9,6 +9,18 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateCalibrationThreadRingGauge extends CreateRecord
 {
     protected static string $resource = CalibrationThreadRingGaugeResource::class;
+    
+    protected function getCreateFormAction(): Actions\Action
+    {
+        return parent::getCreateFormAction()
+            ->label('Save');
+    }
+    
+    protected function getCreateAnotherFormAction(): Actions\Action
+    {
+        return parent::getCreateAnotherFormAction()
+            ->label('Save & save another');
+    }
 
     /**
      * 🔥 Mutate data ก่อน save เพื่อให้แน่ใจว่า calibration_type ถูกตั้งค่า

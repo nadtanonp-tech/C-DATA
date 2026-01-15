@@ -106,41 +106,44 @@ class MonthSelectorWidget extends Widget implements HasForms
 
     /**
      * สร้าง options สำหรับ dropdown เลือกปี
+     * 🚀 ใช้ cache เพื่อไม่ต้อง query ทุกครั้ง
      */
     public function getYearOptions(): array
     {
-        $options = [];
-        $currentYear = (int) Carbon::now()->format('Y');
-        
-        // ตัวเลือก "ทั้งหมด"
-        $options[0] = 'ทั้งหมด';
-        
-        // ดึงปีจากฐานข้อมูล (cal_date และ next_cal_date)
-        $yearsFromCalDate = \Illuminate\Support\Facades\DB::table('calibration_logs')
-            ->selectRaw('DISTINCT EXTRACT(YEAR FROM cal_date) as year')
-            ->whereNotNull('cal_date')
-            ->pluck('year')
-            ->toArray();
+        return \Illuminate\Support\Facades\Cache::remember('year_options', 3600, function () {
+            $options = [];
+            $currentYear = (int) Carbon::now()->format('Y');
             
-        $yearsFromNextCalDate = \Illuminate\Support\Facades\DB::table('calibration_logs')
-            ->selectRaw('DISTINCT EXTRACT(YEAR FROM next_cal_date) as year')
-            ->whereNotNull('next_cal_date')
-            ->pluck('year')
-            ->toArray();
-        
-        // รวมปีทั้งหมดและเรียงลำดับ
-        $allYears = array_unique(array_merge($yearsFromCalDate, $yearsFromNextCalDate));
-        sort($allYears);
-        
-        foreach ($allYears as $year) {
-            $year = (int) $year;
-            $thaiYear = $year + 543;
-            $label = $year === $currentYear 
-                ? "พ.ศ. {$thaiYear} (ปัจจุบัน)" 
-                : "พ.ศ. {$thaiYear}";
-            $options[$year] = $label;
-        }
+            // ตัวเลือก "ทั้งหมด"
+            $options[0] = 'ทั้งหมด';
+            
+            // ดึงปีจากฐานข้อมูล (cal_date และ next_cal_date)
+            $yearsFromCalDate = \Illuminate\Support\Facades\DB::table('calibration_logs')
+                ->selectRaw('DISTINCT EXTRACT(YEAR FROM cal_date) as year')
+                ->whereNotNull('cal_date')
+                ->pluck('year')
+                ->toArray();
+                
+            $yearsFromNextCalDate = \Illuminate\Support\Facades\DB::table('calibration_logs')
+                ->selectRaw('DISTINCT EXTRACT(YEAR FROM next_cal_date) as year')
+                ->whereNotNull('next_cal_date')
+                ->pluck('year')
+                ->toArray();
+            
+            // รวมปีทั้งหมดและเรียงลำดับ
+            $allYears = array_unique(array_merge($yearsFromCalDate, $yearsFromNextCalDate));
+            sort($allYears);
+            
+            foreach ($allYears as $year) {
+                $year = (int) $year;
+                $thaiYear = $year + 543;
+                $label = $year === $currentYear 
+                    ? "พ.ศ. {$thaiYear} (ปัจจุบัน)" 
+                    : "พ.ศ. {$thaiYear}";
+                $options[$year] = $label;
+            }
 
-        return $options;
+            return $options;
+        });
     }
 }

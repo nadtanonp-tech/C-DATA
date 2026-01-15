@@ -7,6 +7,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\On;
@@ -109,14 +110,14 @@ class OverdueInstrumentsWidget extends BaseWidget
             ->paginationPageOptions([5, 10, 25,])
             ->columns([
                 Tables\Columns\TextColumn::make('instrument.code_no')
-                    ->label('รหัสเครื่องมือ')
+                    ->label('ID Code Instrument')
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('instrument.name')
-                    ->label('ชื่อเครื่องมือ')
+                    ->label('ID Code Type')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('instrument.serial_no')
-                    ->label('Serial No.')
+                Tables\Columns\TextColumn::make('instrument.toolType.name')
+                    ->label('Type Name')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('cal_date')
                     ->label('วันที่สอบเทียบล่าสุด')
@@ -179,14 +180,18 @@ class OverdueInstrumentsWidget extends BaseWidget
     {
         $month = $this->selectedMonth ?? (int) Carbon::now()->format('m');
         $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
+        $level = $this->selectedLevel ?? '';
         
-        $overdueIds = $this->getOverdueRecordIds();
-        
-        $query = CalibrationRecord::whereIn('id', $overdueIds);
-        if ($this->selectedLevel) {
-            $query->where('cal_level', $this->selectedLevel);
-        }
-        $count = $query->count();
+        // 🚀 ใช้ cache เพื่อไม่ต้อง query นับจำนวนทุกครั้ง (cache 5 นาที)
+        $cacheKey = "overdue_count_{$month}_{$year}_{$level}";
+        $count = Cache::remember($cacheKey, 300, function () {
+            $overdueIds = $this->getOverdueRecordIds();
+            $query = CalibrationRecord::whereIn('id', $overdueIds);
+            if ($this->selectedLevel) {
+                $query->where('cal_level', $this->selectedLevel);
+            }
+            return $query->count();
+        });
         
         $levelText = $this->selectedLevel ? " - Level {$this->selectedLevel}" : '';
         

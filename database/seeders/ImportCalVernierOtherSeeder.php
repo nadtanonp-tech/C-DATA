@@ -20,6 +20,29 @@ class ImportCalVernierOtherSeeder extends Seeder
         $totalRecords = $oldLogs->count();
         $this->command->info("📊 พบข้อมูล {$totalRecords} รายการใน CALVernierOther");
 
+        // 🔥 ลบข้อมูลเก่าที่มาจาก VernierOther ก่อน re-import
+        $calibrationTypes = [
+            'VernierSpecial', 'Micrometer', 'DialCaliper', 'DialIndicator',
+            'DialTestIndicator', 'ThicknessGauge', 'ThicknessCaliper',
+            'PressureGauge', 'ChamferGauge'
+        ];
+        $deletedCount = DB::table('calibration_logs')
+            ->where(function ($query) use ($calibrationTypes) {
+                $query->whereIn('calibration_type', $calibrationTypes)
+                      ->orWhereNull('calibration_type');
+            })
+            ->where(function ($query) {
+                // PostgreSQL JSONB syntax
+                $query->whereRaw("calibration_data->>'calibration_type' LIKE '%Vernier%'")
+                      ->orWhereRaw("calibration_data->>'calibration_type' LIKE '%Micrometer%'")
+                      ->orWhereRaw("calibration_data->>'calibration_type' LIKE '%Dial%'")
+                      ->orWhereRaw("calibration_data->>'calibration_type' LIKE '%Thickness%'")
+                      ->orWhereRaw("calibration_data->>'calibration_type' LIKE '%Pressure%'")
+                      ->orWhereRaw("calibration_data->>'calibration_type' LIKE '%Chamfer%'");
+            })
+            ->delete();
+        $this->command->info("🗑️ ลบข้อมูลเก่า {$deletedCount} รายการ");
+
         $batchData = [];
         $batchSize = 50;
         $importCount = 0;
@@ -70,9 +93,12 @@ class ImportCalVernierOtherSeeder extends Seeder
                 continue;
             }
             
+            // 🔥 กำหนด calibration_type จาก CodeNo pattern
+            $calibrationType = $this->getCalibrationTypeFromCodeNo($row->CodeNo);
+            
             // 🔥 สร้าง calibration_data
             $calData = [
-                'calibration_type' => 'VernierOther',
+                'calibration_type' => $calibrationType ?? 'VernierOther',
                 'readings' => $readings,
             ];
             
@@ -90,6 +116,7 @@ class ImportCalVernierOtherSeeder extends Seeder
                 'cal_date'      => $this->parseDate($row->CalDate ?? null),
                 'next_cal_date' => $this->parseDate($row->DueDate ?? null),
                 'cal_place'     => 'Internal',
+                'calibration_type' => $calibrationType,
                 'calibration_data' => json_encode($calData, JSON_UNESCAPED_UNICODE),
                 
                 'environment'   => json_encode([
@@ -249,5 +276,45 @@ class ImportCalVernierOtherSeeder extends Seeder
         if ($val === null || $val === '') return null;
         $cleaned = trim(str_replace([',', ' '], '', $val));
         return is_numeric($cleaned) ? $cleaned : null;
+    }
+
+    /**
+     * 🔥 กำหนด calibration_type จาก CodeNo pattern
+     * x-10-xxxx = Vernier Caliper
+     * x-11-xxxx = Micrometer
+     * x-12-xxxx = Dial Caliper
+     * x-13-xxxx = Dial Indicator
+     * x-14-xxxx = Dial Test Indicator
+     * x-15-xxxx = Thickness Gauge
+     * x-16-xxxx = Thickness Caliper
+     * x-18-xxxx = Pressure Gauge
+     * x-19-xxxx = Chamfer Gauge
+     */
+    private function getCalibrationTypeFromCodeNo($codeNo): ?string
+    {
+        if (!$codeNo) return null;
+        
+        $codeNo = strtoupper(trim($codeNo));
+        
+        // Mapping: รหัสกลาง (ตัวเลขหลังขีดแรก) => calibration_type
+        $typeMapping = [
+            '10' => 'VernierSpecial',
+            '11' => 'Micrometer',
+            '12' => 'DialCaliper',
+            '13' => 'DialIndicator',
+            '14' => 'DialTestIndicator',
+            '15' => 'ThicknessGauge',
+            '16' => 'ThicknessCaliper',
+            '18' => 'PressureGauge',
+            '19' => 'ChamferGauge',
+        ];
+        
+        // ดึงส่วนกลางของ CodeNo (pattern: x-XX-xxxx)
+        if (preg_match('/^\d+-(\d{2})-/', $codeNo, $matches)) {
+            $middleCode = $matches[1];
+            return $typeMapping[$middleCode] ?? null;
+        }
+        
+        return null;
     }
 }

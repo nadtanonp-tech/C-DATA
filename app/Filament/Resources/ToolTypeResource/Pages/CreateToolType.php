@@ -9,6 +9,18 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateToolType extends CreateRecord
 {
     protected static string $resource = ToolTypeResource::class;
+    
+    protected function getCreateFormAction(): Actions\Action
+    {
+        return parent::getCreateFormAction()
+            ->label('Save');
+    }
+    
+    protected function getCreateAnotherFormAction(): Actions\Action
+    {
+        return parent::getCreateAnotherFormAction()
+            ->label('Save & save another');
+    }
 
     protected function getRedirectUrl(): string
     {

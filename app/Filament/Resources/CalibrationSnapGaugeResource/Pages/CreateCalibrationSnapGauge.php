@@ -9,6 +9,18 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateCalibrationSnapGauge extends CreateRecord
 {
     protected static string $resource = CalibrationSnapGaugeResource::class;
+    
+    protected function getCreateFormAction(): Actions\Action
+    {
+        return parent::getCreateFormAction()
+            ->label('Save');
+    }
+    
+    protected function getCreateAnotherFormAction(): Actions\Action
+    {
+        return parent::getCreateAnotherFormAction()
+            ->label('Save & save another');
+    }
 
     /**
      * 🔥 Redirect ไปหน้า View หลัง create สำเร็จ

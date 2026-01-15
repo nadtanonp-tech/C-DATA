@@ -922,7 +922,8 @@ class CalibrationRecordResource extends Resource
     {
         return $table
             ->defaultPaginationPageOption(10)
-            ->paginationPageOptions([10, 25])
+            ->paginationPageOptions([10, 25, 50, 100, 500])
+            ->deferLoading()
             ->columns([
                 TextColumn::make('instrument.code_no')->label('ID Code')->searchable()->sortable(),
                 TextColumn::make('instrument.toolType.name')->label('Type Name')->searchable(),
@@ -951,14 +952,22 @@ class CalibrationRecordResource extends Resource
                     ->label('ประเภทการสอบเทียบ')
                     ->options([
                         'VernierCaliper' => 'Vernier Caliper',
+                        'VernierSpecial' => 'Vernier Special',
                         'VernierDigital' => 'Vernier Digital',
-                        'MicroMeter' => 'Micro Meter',
+                        'Micrometer' => 'Micrometer',
+                        'DialCaliper' => 'Dial Caliper',
+                        'DialIndicator' => 'Dial Indicator',
+                        'DialTestIndicator' => 'Dial Test Indicator',
                         'DialGauge' => 'Dial Gauge',
                         'DepthGauge' => 'Depth Gauge',
                         'HeightGauge' => 'Height Gauge',
+                        'ThicknessGauge' => 'Thickness Gauge',
+                        'ThicknessCaliper' => 'Thickness Caliper',
                         'PressureGauge' => 'Pressure Gauge',
+                        'ChamferGauge' => 'Chamfer Gauge',
                     ])
-                    ->searchable(),
+                    ->searchable()
+                    ->preload(),
                 Tables\Filters\Filter::make('cal_date')
                     ->form([
                         Forms\Components\DatePicker::make('from')

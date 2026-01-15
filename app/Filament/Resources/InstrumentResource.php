@@ -345,8 +345,46 @@ class InstrumentResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true), // ซ่อนไว้ก่อนเป็นค่าเริ่มต้น
             ])
             ->filters([
-                // เดี๋ยวเรามาเติมตัวกรองข้อมูลทีหลัง
-            ])
+                Tables\Filters\SelectFilter::make('status')
+                    ->label('สถานะ')
+                    ->options([
+                        'ใช้งาน' => 'Active (ใช้งาน)',
+                        'Spare' => 'Spare',
+                        'ยกเลิก' => 'Inactive (ยกเลิก)',
+                        'ส่งซ่อม' => 'Repair (ส่งซ่อม)',
+                        'สูญหาย' => 'Lost (สูญหาย)',
+                    ])
+                    ->multiple()
+                    ->preload(),
+                Tables\Filters\SelectFilter::make('equip_type')
+                    ->label('ประเภทการใช้งาน')
+                    ->options([
+                        'Working' => 'Working (ใช้งานทั่วไป)',
+                        'Master' => 'Master (เครื่องมือมาตรฐาน)',
+                    ]),
+                Tables\Filters\SelectFilter::make('cal_place')
+                    ->label('สถานที่สอบเทียบ')
+                    ->options([
+                        'Internal' => 'Internal (ภายใน)',
+                        'External' => 'External (ภายนอก)',
+                    ]),
+                Tables\Filters\SelectFilter::make('tool_type_id')
+                    ->label('Type Name')
+                    ->relationship('toolType', 'name')
+                    ->searchable()
+                    ->preload()
+                    ->columnSpan(2),
+                Tables\Filters\SelectFilter::make('code_type')
+                    ->label('ID Code Type')
+                    ->options(fn () => \App\Models\ToolType::pluck('code_type', 'code_type')->toArray())
+                    ->searchable()
+                    ->preload(),
+                Tables\Filters\SelectFilter::make('department_id')
+                    ->label('แผนก')
+                    ->relationship('department', 'name')
+                    ->searchable()
+                    ->preload(),
+            ], layout: Tables\Enums\FiltersLayout::AboveContentCollapsible)
             ->actions([
                 Tables\Actions\EditAction::make()
                     ->color('warning'),

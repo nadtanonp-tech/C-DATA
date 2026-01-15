@@ -670,7 +670,35 @@ class CalibrationThreadPlugGaugeResource extends Resource
                     })
                     ->badge(),
             ])
-            ->filters([])
+            ->filters([
+                Tables\Filters\SelectFilter::make('result_status')
+                    ->label('ผลการ Cal')
+                    ->options([
+                        'Pass' => 'Pass',
+                        'Reject' => 'Reject',
+                    ]),
+                Tables\Filters\SelectFilter::make('cal_level')
+                    ->label('Level')
+                    ->options([
+                        'A' => 'Level A',
+                        'B' => 'Level B',
+                        'C' => 'Level C',
+                    ]),
+                Tables\Filters\Filter::make('cal_date')
+                    ->form([
+                        Forms\Components\DatePicker::make('from')
+                            ->label('จากวันที่'),
+                        Forms\Components\DatePicker::make('until')
+                            ->label('ถึงวันที่'),
+                    ])
+                    ->columns(2)
+                    ->columnSpan(2)
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when($data['from'], fn (Builder $q, $date) => $q->whereDate('cal_date', '>=', $date))
+                            ->when($data['until'], fn (Builder $q, $date) => $q->whereDate('cal_date', '<=', $date));
+                    }),
+            ], layout: Tables\Enums\FiltersLayout::AboveContentCollapsible)
             ->actions([
                 Actions\ViewAction::make(),
                 Actions\EditAction::make()

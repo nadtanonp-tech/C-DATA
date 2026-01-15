@@ -252,8 +252,19 @@ class ToolTypeResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
-            ])
+                Tables\Filters\SelectFilter::make('name')
+                    ->label('Type Name')
+                    ->options(fn () => \App\Models\ToolType::pluck('name', 'name')->toArray())
+                    ->searchable()
+                    ->columnSpan(2)
+                    ->preload(),
+                Tables\Filters\TernaryFilter::make('has_instruments')
+                    ->label('มีเครื่องมือใช้งาน')
+                    ->queries(
+                        true: fn ($query) => $query->has('instruments'),
+                        false: fn ($query) => $query->doesntHave('instruments'),
+                    ),
+            ], layout: Tables\Enums\FiltersLayout::AboveContentCollapsible)
             ->actions([
                 Tables\Actions\EditAction::make()
                     ->color('warning'),

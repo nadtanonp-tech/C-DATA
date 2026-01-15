@@ -933,7 +933,47 @@ class CalibrationRecordResource extends Resource
                 TextColumn::make('cal_level')->label('Level')->badge()
                     ->color(fn (string $state): string => match ($state) { 'A' => 'success', 'B' => 'warning', 'C' => 'danger', default => 'gray' }),
             ])
-            ->filters([])
+            ->filters([
+                Tables\Filters\SelectFilter::make('result_status')
+                    ->label('ผลการ Cal')
+                    ->options([
+                        'Pass' => 'Pass',
+                        'Reject' => 'Reject',
+                    ]),
+                Tables\Filters\SelectFilter::make('cal_level')
+                    ->label('Level')
+                    ->options([
+                        'A' => 'Level A',
+                        'B' => 'Level B',
+                        'C' => 'Level C',
+                    ]),
+                Tables\Filters\SelectFilter::make('calibration_type')
+                    ->label('ประเภทการสอบเทียบ')
+                    ->options([
+                        'VernierCaliper' => 'Vernier Caliper',
+                        'VernierDigital' => 'Vernier Digital',
+                        'MicroMeter' => 'Micro Meter',
+                        'DialGauge' => 'Dial Gauge',
+                        'DepthGauge' => 'Depth Gauge',
+                        'HeightGauge' => 'Height Gauge',
+                        'PressureGauge' => 'Pressure Gauge',
+                    ])
+                    ->searchable(),
+                Tables\Filters\Filter::make('cal_date')
+                    ->form([
+                        Forms\Components\DatePicker::make('from')
+                            ->label('จากวันที่'),
+                        Forms\Components\DatePicker::make('until')
+                            ->label('ถึงวันที่'),
+                    ])
+                    ->columns(2)
+                    ->columnSpan(2)
+                    ->query(function (\Illuminate\Database\Eloquent\Builder $query, array $data): \Illuminate\Database\Eloquent\Builder {
+                        return $query
+                            ->when($data['from'], fn ($q, $date) => $q->whereDate('cal_date', '>=', $date))
+                            ->when($data['until'], fn ($q, $date) => $q->whereDate('cal_date', '<=', $date));
+                    }),
+            ], layout: Tables\Enums\FiltersLayout::AboveContentCollapsible)
             ->actions([Actions\ViewAction::make(), Actions\EditAction::make()->color('warning'), Actions\DeleteAction::make()])
             ->bulkActions([Tables\Actions\BulkActionGroup::make([Tables\Actions\DeleteBulkAction::make()])]);
     }

@@ -292,8 +292,20 @@ class ImportCalThreadPlugSeeder extends Seeder
             }
             
             // 🔥 สร้าง calibration_data ใน format ใหม่
+            // 🔥 ตรวจสอบ code_no pattern เพื่อกำหนด calibration_type
+            $codeNo = strtoupper(trim($row->CodeNo));
+            $calibrationType = 'ThreadPlugGauge'; // default
+            
+            if (preg_match('/^\d-04-/', $codeNo)) {
+                $calibrationType = 'ThreadPlugGauge';
+            } elseif (preg_match('/^\d-06-/', $codeNo)) {
+                $calibrationType = 'SerrationPlugGauge';
+            } else {
+                $this->command->warn("⚠️ ไม่รู้จัก pattern: {$codeNo} - ใช้ ThreadPlugGauge");
+            }
+            
             $calData = [
-                'calibration_type' => 'ThreadPlugGauge', // 🔥 เพิ่มสำหรับแยกประเภท
+                'calibration_type' => $calibrationType,
                 'readings' => $readings,
             ];
 
@@ -303,6 +315,7 @@ class ImportCalThreadPlugSeeder extends Seeder
                 'cal_date'      => $this->parseDate($row->CalDate),
                 'next_cal_date' => $this->parseDate($row->DueDate),
                 'cal_place'     => 'Internal',
+                'calibration_type' => $calibrationType, // 🔥 เพิ่ม column
                 'calibration_data' => json_encode($calData, JSON_UNESCAPED_UNICODE),
                 
                 'environment'   => json_encode([
@@ -471,9 +484,21 @@ class ImportCalThreadPlugSeeder extends Seeder
                 'specs' => $specs,
             ];
             
+            // 🔥 ตรวจสอบ code_no pattern เพื่อกำหนด calibration_type
+            $codeNo = strtoupper(trim($row->CodeNo));
+            $calibrationType = 'SerrationPlugGauge'; // default สำหรับ 8-06-
+            
+            if (preg_match('/^\d-04-/', $codeNo)) {
+                $calibrationType = 'ThreadPlugGauge';
+            } elseif (preg_match('/^\d-06-/', $codeNo)) {
+                $calibrationType = 'SerrationPlugGauge';
+            } else {
+                $this->command->warn("⚠️ ไม่รู้จัก pattern: {$codeNo} - ใช้ SerrationPlugGauge");
+            }
+            
             // สร้าง calibration_data
             $calData = [
-                'calibration_type' => 'ThreadPlugGauge',
+                'calibration_type' => $calibrationType,
                 'readings' => $readings,
             ];
 
@@ -482,7 +507,7 @@ class ImportCalThreadPlugSeeder extends Seeder
                 'cal_date'      => $this->parseDate($row->CalDate),
                 'next_cal_date' => $this->parseDate($row->DueDate),
                 'cal_place'     => 'Internal',
-                
+                'calibration_type' => $calibrationType, // 🔥 เพิ่ม column
                 'calibration_data' => json_encode($calData, JSON_UNESCAPED_UNICODE),
                 
                 'environment'   => json_encode([

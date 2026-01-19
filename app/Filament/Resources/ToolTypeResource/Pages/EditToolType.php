@@ -18,6 +18,14 @@ class EditToolType extends EditRecord
         $firstPointSpecs = $specs[0]['specs'] ?? [];
         $firstPointLabel = $firstPointSpecs[0]['label'] ?? '';
         
+        // 🔥 เช็คว่าเป็น External Cal Type (มี label=Criteria หรือ cri_plus/cri_minus)
+        if ($firstPointLabel === 'Criteria' || 
+            isset($firstPointSpecs[0]['cri_plus']) || 
+            isset($firstPointSpecs[0]['cri_minus'])) {
+            $data['is_external_cal_type'] = 1;
+            return $data;
+        }
+        
         if ($firstPointLabel === 'S' || collect($firstPointSpecs)->pluck('label')->contains('S')) {
             $data['is_new_instruments_type'] = 1;
             return $data;
@@ -90,6 +98,20 @@ class EditToolType extends EditRecord
 
         $data['criteria_unit'] = $existing;
 
+        // 🔥 แปลง cri_minus จากค่าบวกเป็นค่าลบ (ถ้า user ลืมใส่ -)
+        if (isset($data['dimension_specs']) && is_array($data['dimension_specs'])) {
+            foreach ($data['dimension_specs'] as &$point) {
+                if (isset($point['specs']) && is_array($point['specs'])) {
+                    foreach ($point['specs'] as &$spec) {
+                        if (isset($spec['cri_minus']) && is_numeric($spec['cri_minus']) && (float)$spec['cri_minus'] > 0) {
+                            $spec['cri_minus'] = -abs((float)$spec['cri_minus']);
+                        }
+                    }
+                }
+            }
+            unset($point, $spec); // ลบ reference
+        }
+
         // 🔥 กรอง dimension_specs - ลบ specs ที่ไม่มีข้อมูล และ trend ที่ว่างออก
         if (isset($data['dimension_specs']) && is_array($data['dimension_specs'])) {
             $filteredPoints = [];
@@ -126,6 +148,14 @@ class EditToolType extends EditRecord
                         elseif ($label === 'Cs') {
                             $csStd = $spec['cs_std'] ?? null;
                             $hasValue = $csStd !== null && $csStd !== '' && $csStd !== '0' && $csStd !== 0 && (float)$csStd !== 0.0;
+                        }
+                        // 🔥 สำหรับ External Cal Type (label=Criteria, มี cri_plus/cri_minus)
+                        elseif ($label === 'Criteria' || isset($spec['cri_plus']) || isset($spec['cri_minus'])) {
+                            $criPlus = $spec['cri_plus'] ?? null;
+                            $criMinus = $spec['cri_minus'] ?? null;
+                            $hasValue = ($criPlus !== null && $criPlus !== '') || 
+                                       ($criMinus !== null && $criMinus !== '') ||
+                                       ($label !== null && $label !== '');
                         }
                         
                         // เก็บ spec นี้ถ้ามีค่าที่มีความหมาย

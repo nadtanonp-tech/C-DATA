@@ -111,8 +111,7 @@ class ImportInstrumentsSeeder extends Seeder
                     'machine_name'    => $this->cleanText($oldRow->Machine),
                     'cal_freq_months' => (int) ($oldRow->FeqCAL ?? 12),
                     'receive_date'    => $this->parseDate($oldRow->RecieveDate),
-                    'next_cal_date'     => null, // ปล่อยว่างไว้ก่อน (เพราะ ExpireDate ของเก่าคือวันยกเลิก)
-                    'cancellation_date' => $this->parseDate($oldRow->ExpireDate), // ย้ายมาลงช่องนี้แทน
+                    'next_cal_date'     => null, // ปล่อยว่างไว้ก่อน
                     'cal_place'       => $this->mapPlaceCal($oldRow->PlaceCAL),
                     'range_spec'      => $this->cleanText($oldRow->Range),
                     'percent_adj'     => $this->cleanText($oldRow->PercentAdj),

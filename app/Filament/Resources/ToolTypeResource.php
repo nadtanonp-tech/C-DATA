@@ -18,6 +18,7 @@ use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Fieldset;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Get;
 use App\Filament\Resources\ToolTypeResource\RelationManagers;
 
 
@@ -42,6 +43,7 @@ class ToolTypeResource extends Resource
                 Forms\Components\Hidden::make('is_serration_ring_gauge')->default(0)->dehydrated(false),
                 Forms\Components\Hidden::make('is_thread_plug_gauge_for_checking_fit_wear')->default(0)->dehydrated(false),
                 Forms\Components\Hidden::make('is_serration_plug_gauge_for_checking_fit_wear')->default(0)->dehydrated(false),
+                Forms\Components\Hidden::make('is_external_cal_type')->default(0)->dehydrated(false),
 
                 Section::make('ข้อมูลทั่วไป')
                     ->schema([
@@ -70,7 +72,6 @@ class ToolTypeResource extends Resource
                         Grid::make(3)->schema([
                             Textarea::make('range')
                                 ->label('การใช้งาน (Range)')
-                                ->required()
                                 ->afterStateHydrated(function (Textarea $component, $state, $record) {
                                     $value = '';
                                     if ($record && is_array($record->criteria_unit)) {
@@ -111,16 +112,20 @@ class ToolTypeResource extends Resource
                 Section::make('สเปคขนาด (Dimension Specs)')
                     ->schema([
                         Repeater::make('dimension_specs')
-                            ->label('รายการจุดตรวจสอบ (Points)')
-                            ->reorderable(false) // ปิดปุ่ม Move ตาม Request
-                            ->itemLabel(fn (array $state): ?string => 'Point ' . ($state['point'] ?? '?'))
+                            ->label(fn ($livewire) => data_get($livewire->data ?? [], 'is_external_cal_type') ? 'รายการ Range' : 'รายการจุดตรวจสอบ (Points)')
+                            ->reorderable(false)
+                            ->itemLabel(fn (array $state, $livewire): ?string => 
+                                data_get($livewire->data ?? [], 'is_external_cal_type') 
+                                    ? 'Range ' . ($state['point'] ?? '?') 
+                                    : 'Point ' . ($state['point'] ?? '?')
+                            )
                             ->schema([
                                 // --- ส่วนหัวของแต่ละตาราง (ชื่อตาราง + แนวโน้ม) ---
                         Grid::make(4)->schema([
                             TextInput::make('point')
-                                ->label('ชื่อจุดตรวจสอบ (เช่น A, B, C)')
-                                ->required()
-                                ->placeholder('ใส่ชื่อจุด (A, B...)'),
+                                ->label(fn ($livewire) => data_get($livewire->data ?? [], 'is_external_cal_type') ? 'ชื่อ Range (เช่น 1, 2, 3)' : 'ชื่อจุดตรวจสอบ (เช่น A, B, C)')
+                                ->placeholder(fn ($livewire) => data_get($livewire->data ?? [], 'is_external_cal_type') ? 'ใส่ Range (1, 2...)' : 'ใส่ชื่อจุด (A, B...)')
+                                ->required(),
 
                             Select::make('trend')
                                 ->label('แนวโน้ม (Trend)')
@@ -129,9 +134,9 @@ class ToolTypeResource extends Resource
                                     'Bigger' => 'ใหญ่ขึ้น (Bigger)',
                                     'Smaller' => 'เล็กลง (Smaller)',
                                 ])
-                                ->disabled(fn ($livewire) => data_get($livewire->data ?? [], 'is_new_instruments_type'))
-                                ->required(fn ($livewire) => !(data_get($livewire->data ?? [], 'is_new_instruments_type')))
-                                ->dehydrated(fn ($livewire) => !data_get($livewire->data ?? [], 'is_new_instruments_type')),
+                                ->hidden(fn ($livewire) => data_get($livewire->data ?? [], 'is_new_instruments_type') || data_get($livewire->data ?? [], 'is_external_cal_type'))
+                                ->required(fn ($livewire) => !(data_get($livewire->data ?? [], 'is_new_instruments_type') || data_get($livewire->data ?? [], 'is_external_cal_type')))
+                                ->dehydrated(fn ($livewire) => !(data_get($livewire->data ?? [], 'is_new_instruments_type') || data_get($livewire->data ?? [], 'is_external_cal_type'))),
                                 ]),
 
                         // --- ส่วนไส้ใน: ฟิลด์ย่อย (STD, Major...) ---
@@ -140,74 +145,133 @@ class ToolTypeResource extends Resource
                         Repeater::make('specs')
                             ->label('รายการฟิลด์ตรวจสอบ')
                             ->deleteAction(fn ($action) => $action->icon('heroicon-o-minus-circle'))
-                            ->schema([
-                                Grid::make(3)->schema([
-                                    Select::make('label')
-                                        ->label('ชื่อฟิลด์ (Field Name)')
-                                        ->options([
-                                            'STD' => 'STD',
-                                            'Major' => 'Major',
-                                            'Pitch' => 'Pitch',
-                                            'Plug' => 'Plug',
-                                            'วัดเกลียว' => 'วัดเกลียว',
-                                            'S' => 'S', 
-                                            'Cs' => 'Cs',
-                                        ])
-                                        ->required()
-                                        ->native(false)
-                                        ->default('STD')
-                                        ->disabled(fn ($livewire) => data_get($livewire->data ?? [], 'is_snap_gauge') || data_get($livewire->data ?? [], 'is_plug_gauge') || data_get($livewire->data ?? [], 'is_thread_plug_gauge') || data_get($livewire->data ?? [], 'is_thread_ring_gauge') || data_get($livewire->data ?? [], 'is_serration_plug_gauge') || data_get($livewire->data ?? [], 'is_serration_ring_gauge') || data_get($livewire->data ?? [], 'is_new_instruments_type'))
-                                        ->dehydrated()
-                                        ->live(),
+                            ->schema([ 
+                                // 🔥 Grid สำหรับ External Cal Type (4 columns)
+                                Grid::make(4)
+                                    ->visible(fn ($livewire) => data_get($livewire->data ?? [], 'is_external_cal_type'))
+                                    ->schema([
+                                        TextInput::make('usage')
+                                            ->label('การใช้งาน')
+                                            ->placeholder('ระบุการใช้งาน'),
+                                        
+                                        TextInput::make('cri_plus')
+                                            ->label('Criteria (+)')
+                                            ->numeric()
+                                            ->placeholder('+0.00')
+                                            ->prefix('+'),
+                                        
+                                        TextInput::make('cri_minus')
+                                            ->label('Criteria (-)')
+                                            ->numeric()
+                                            ->placeholder('-0.00')
+                                            ->prefix('-'),
+                                        
+                                        Select::make('cri_unit')
+                                            ->label('Unit')
+                                            ->placeholder('mm.')
+                                            ->default('mm.')
+                                            ->options([
+                                                'mm' => 'mm.',
+                                                'Degree/Lipda' => 'Degree/Lipda',
+                                                'um' => 'um',
+                                                'L/min' => 'L/min',
+                                                '%' => '%',
+                                                'kgf/cm2' => 'kgf/cm2',
+                                                'sec' => 'sec',
+                                                'kgf.cm' => 'kgf.cm',
+                                                'kg' => 'kg',
+                                                'g' => 'g',
+                                                '%RH' => '%RH',
+                                                '%F.S' => '%F.S',
+                                                'Lux' => 'Lux',
+                                                'V' => 'V',
+                                                'A' => 'A',
+                                                'Degree' => 'Degree',
+                                            ])
+                                            ->searchable()
+                                            ->createOptionForm([
+                                                TextInput::make('unit')
+                                                    ->label('Unit ใหม่')
+                                                    ->required(),
+                                            ])
+                                            ->createOptionUsing(function (array $data): string {
+                                                return $data['unit'];
+                                            }),
+                                    ]),
+                                
+                                // 🔥 Grid สำหรับ Type อื่นๆ (3 columns)
+                                Grid::make(3)
+                                    ->hidden(fn ($livewire) => data_get($livewire->data ?? [], 'is_external_cal_type'))
+                                    ->schema([
+                                        Select::make('label')
+                                            ->label('ชื่อฟิลด์ (Field Name)')
+                                            ->options([
+                                                'STD' => 'STD',
+                                                'Major' => 'Major',
+                                                'Pitch' => 'Pitch',
+                                                'Plug' => 'Plug',
+                                                'วัดเกลียว' => 'วัดเกลียว',
+                                                'S' => 'S', 
+                                                'Cs' => 'Cs',
+                                            ])
+                                            ->required()
+                                            ->native(false)
+                                            ->default('STD')
+                                            ->disabled(fn ($livewire) => data_get($livewire->data ?? [], 'is_snap_gauge') || data_get($livewire->data ?? [], 'is_plug_gauge') || data_get($livewire->data ?? [], 'is_thread_plug_gauge') || data_get($livewire->data ?? [], 'is_thread_ring_gauge') || data_get($livewire->data ?? [], 'is_serration_plug_gauge') || data_get($livewire->data ?? [], 'is_serration_ring_gauge') || data_get($livewire->data ?? [], 'is_new_instruments_type'))
+                                            ->dehydrated()
+                                            ->live(),
 
-                                    TextInput::make('min')
-                                        ->label('Min')
-                                        ->numeric()
-                                        ->placeholder('0.000')
-                                        ->formatStateUsing(fn ($state) => $state === null ? null : rtrim(rtrim(number_format((float)$state, 8, '.', ''), '0'), '.'))
-                                        ->hidden(fn (Forms\Get $get) => in_array($get('label'), ['วัดเกลียว', 'S', 'Cs'])),
+                                        TextInput::make('min')
+                                            ->label('Min')
+                                            ->numeric()
+                                            ->placeholder('0.000')
+                                            ->formatStateUsing(fn ($state) => $state === null ? null : rtrim(rtrim(number_format((float)$state, 8, '.', ''), '0'), '.'))
+                                            ->hidden(fn (Forms\Get $get) => in_array($get('label'), ['วัดเกลียว', 'S', 'Cs'])),
 
-                                    TextInput::make('max')
-                                        ->label('Max')
-                                        ->numeric()
-                                        ->placeholder('0.000')
-                                        ->formatStateUsing(fn ($state) => $state === null ? null : rtrim(rtrim(number_format((float)$state, 8, '.', ''), '0'), '.'))
-                                        ->hidden(fn (Forms\Get $get) => in_array($get('label'), ['วัดเกลียว', 'S', 'Cs'])),
-                                    
-                                    TextInput::make('standard_value')
-                                        ->label('ค่า Standard')
-                                        ->visible(fn (Forms\Get $get) => $get('label') === 'วัดเกลียว')
-                                        ->columnSpan(2),
+                                        TextInput::make('max')
+                                            ->label('Max')
+                                            ->numeric()
+                                            ->placeholder('0.000')
+                                            ->formatStateUsing(fn ($state) => $state === null ? null : rtrim(rtrim(number_format((float)$state, 8, '.', ''), '0'), '.'))
+                                            ->hidden(fn (Forms\Get $get) => in_array($get('label'), ['วัดเกลียว', 'S', 'Cs'])),
+                                        
+                                        TextInput::make('standard_value')
+                                            ->label('ค่า Standard')
+                                            ->visible(fn (Forms\Get $get) => $get('label') === 'วัดเกลียว')
+                                            ->columnSpan(2),
 
-                                    // ฟิลด์สำหรับ S (0.00)
-                                    TextInput::make('s_std')
-                                        ->label('S STD')
-                                        ->numeric()
-                                        ->placeholder('0.00')
-                                        ->formatStateUsing(fn ($state) => $state === null ? null : rtrim(rtrim(number_format((float)$state, 8, '.', ''), '0'), '.'))
-                                        // ->mask('99.99') // อาจใช้ mask ก็ได้ถ้าต้องการบังคับ format เป๊ะๆ
-                                        ->visible(fn (Forms\Get $get) => $get('label') === 'S')
-                                        ->columnSpan(2),
+                                        TextInput::make('s_std')
+                                            ->label('S STD')
+                                            ->numeric()
+                                            ->placeholder('0.00')
+                                            ->formatStateUsing(fn ($state) => $state === null ? null : rtrim(rtrim(number_format((float)$state, 8, '.', ''), '0'), '.'))
+                                            ->visible(fn (Forms\Get $get) => $get('label') === 'S')
+                                            ->columnSpan(2),
 
-                                    // ฟิลด์สำหรับ Cs (0.000)
-                                    TextInput::make('cs_std')
-                                        ->label('Cs STD')
-                                        ->numeric()
-                                        ->placeholder('0.000')
-                                        ->formatStateUsing(fn ($state) => $state === null ? null : rtrim(rtrim(number_format((float)$state, 8, '.', ''), '0'), '.'))
-                                        ->visible(fn (Forms\Get $get) => $get('label') === 'Cs')
-                                        ->columnSpan(2),
-                                ]),
+                                        TextInput::make('cs_std')
+                                            ->label('Cs STD')
+                                            ->numeric()
+                                            ->placeholder('0.000')
+                                            ->formatStateUsing(fn ($state) => $state === null ? null : rtrim(rtrim(number_format((float)$state, 8, '.', ''), '0'), '.'))
+                                            ->visible(fn (Forms\Get $get) => $get('label') === 'Cs')
+                                            ->columnSpan(2),
+                                    ]),
                             ])
                             ->addActionLabel('เพิ่มฟิลด์ตรวจสอบ (+)')
-                            ->addable(fn ($livewire) => !data_get($livewire->data ?? [], 'is_snap_gauge') && !data_get($livewire->data ?? [], 'is_plug_gauge') && !data_get($livewire->data ?? [], 'is_thread_plug_gauge') && !data_get($livewire->data ?? [], 'is_serration_plug_gauge') && !data_get($livewire->data ?? [], 'is_new_instruments_type') && !data_get($livewire->data ?? [], 'is_thread_ring_gauge') && !data_get($livewire->data ?? [], 'is_serration_ring_gauge'))
-                            ->deletable(fn ($livewire) => !data_get($livewire->data ?? [], 'is_snap_gauge') && !data_get($livewire->data ?? [], 'is_plug_gauge') && !data_get($livewire->data ?? [], 'is_thread_plug_gauge') && !data_get($livewire->data ?? [], 'is_serration_plug_gauge') && !data_get($livewire->data ?? [], 'is_new_instruments_type') && !data_get($livewire->data ?? [], 'is_thread_ring_gauge') && !data_get($livewire->data ?? [], 'is_serration_ring_gauge'))
+                            ->addable(fn ($livewire) => !data_get($livewire->data ?? [], 'is_snap_gauge') && !data_get($livewire->data ?? [], 'is_plug_gauge') && !data_get($livewire->data ?? [], 'is_thread_plug_gauge') && !data_get($livewire->data ?? [], 'is_serration_plug_gauge') && !data_get($livewire->data ?? [], 'is_new_instruments_type') && !data_get($livewire->data ?? [], 'is_thread_ring_gauge') && !data_get($livewire->data ?? [], 'is_serration_ring_gauge') && !data_get($livewire->data ?? [], 'is_external_cal_type'))
+                            ->deletable(fn ($livewire) => !data_get($livewire->data ?? [], 'is_snap_gauge') && !data_get($livewire->data ?? [], 'is_plug_gauge') && !data_get($livewire->data ?? [], 'is_thread_plug_gauge') && !data_get($livewire->data ?? [], 'is_serration_plug_gauge') && !data_get($livewire->data ?? [], 'is_new_instruments_type') && !data_get($livewire->data ?? [], 'is_thread_ring_gauge') && !data_get($livewire->data ?? [], 'is_serration_ring_gauge') && !data_get($livewire->data ?? [], 'is_external_cal_type'))
                             ->grid(1) // เรียงลงมาทีละบรรทัด
-                            ->defaultItems(fn ($livewire) => data_get($livewire->data ?? [], 'is_kgauge') ? 1 : (data_get($livewire->data ?? [], 'is_new_instruments_type') ? 2 : 0))
+                            ->defaultItems(fn ($livewire) => match(true) {
+                                (bool) data_get($livewire->data ?? [], 'is_kgauge') => 1,
+                                (bool) data_get($livewire->data ?? [], 'is_new_instruments_type') => 2,
+                                (bool) data_get($livewire->data ?? [], 'is_external_cal_type') => 1,
+                                default => 0
+                            })
                             ->default(fn ($livewire) => match(true) {
                                 (bool) data_get($livewire->data ?? [], 'is_new_instruments_type') => [['label' => 'S'], ['label' => 'Cs']],
                                 (bool) data_get($livewire->data ?? [], 'is_kgauge') => [['label' => 'STD']],
                                 (bool) (data_get($livewire->data ?? [], 'is_thread_ring_gauge') || data_get($livewire->data ?? [], 'is_serration_ring_gauge')) => [['label' => 'วัดเกลียว']],
+                                (bool) data_get($livewire->data ?? [], 'is_external_cal_type') => [['label' => '', 'cri_plus' => null, 'cri_minus' => null]],
                                 default => null
                             })
                         ])
@@ -264,6 +328,7 @@ class ToolTypeResource extends Resource
                     ->placeholder('All')
                     ->trueLabel('ใช้งาน')
                     ->falseLabel('ไม่ใช้งาน')
+                    ->native(false)
                     ->queries(
                         true: fn ($query) => $query->has('instruments'),
                         false: fn ($query) => $query->doesntHave('instruments'),

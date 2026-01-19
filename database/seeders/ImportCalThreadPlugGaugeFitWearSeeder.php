@@ -168,6 +168,7 @@ class ImportCalThreadPlugGaugeFitWearSeeder extends Seeder
                 'cal_date'      => $this->parseDate($row->CalDate),
                 'next_cal_date' => $this->parseDate($row->DueDate),
                 'cal_place'     => 'Internal',
+                'calibration_type' => 'ThreadPlugGaugeFitWear', // 🔥 เพิ่ม column สำหรับ filter
                 'calibration_data' => json_encode($calData, JSON_UNESCAPED_UNICODE),
                 
                 'environment'   => json_encode([

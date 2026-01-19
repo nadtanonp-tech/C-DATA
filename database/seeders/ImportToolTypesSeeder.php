@@ -17,6 +17,11 @@ class ImportToolTypesSeeder extends Seeder
 
     public function run()
     {
+        // 🔥 ลบข้อมูลเก่าก่อน Import
+        $this->command->info("🗑️ Deleting old tool_types data...");
+        DB::table('tool_types')->truncate();
+        $this->command->info("✅ Old data deleted!");
+
         $oldDataRows = DB::table('Type')->get(); 
 
         foreach ($oldDataRows as $oldRow) {
@@ -33,22 +38,93 @@ class ImportToolTypesSeeder extends Seeder
                 $name = (!empty($size)) ? $size : 'TYPE ' . $codeType;
             }
 
-            // 1) แปลง A-Q เป็น JSON
-            $dimensionSpecs = []; 
-            $prefixes = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q'];
+            // 🔥 ตรวจสอบว่าเป็น External Cal Type หรือไม่ (จาก DataRecord.PlaceCAL)
+            $dataRecord = DB::table('DataRecord')
+                ->where('Name', $codeType)
+                ->where('PlaceCAL', 'like', '%External%')
+                ->first();
+            
+            $isExternalCalType = $dataRecord !== null;
 
-            foreach ($prefixes as $char) {
-                // หา Trend
-                $rawVal = $oldRow->{'SmallBig' . $char} ?? null;
-                $trend = null;
-                if ($rawVal !== null) {
-                    $trimVal = trim($rawVal);
-                    if (in_array($trimVal, ['ใหญ่ขึ้น', 'Big', 'Bigger'], true)) $trend = 'Bigger';
-                    elseif (in_array($trimVal, ['เล็กลง', 'Small', 'Smaller'], true)) $trend = 'Smaller';
-                    else $trend = $trimVal;
+            // 1) แปลง A-Q เป็น JSON หรือแปลง Range1-5 สำหรับ External Cal Type
+            $dimensionSpecs = [];
+            
+            if ($isExternalCalType) {
+                // 🔥 External Cal Type: ใช้ Range1-5, Criteria1-5, Criteria1-1 to 5-5, Unit1-5
+                for ($i = 1; $i <= 5; $i++) {
+                    $rangeKey = 'Range' . $i;
+                    $criteriaKey = 'Criteria' . $i;
+                    $criteriaMinusKey = 'Criteria' . $i . '-' . $i; // Criteria1-1, Criteria2-2, etc.
+                    $unitKey = 'Unit' . $i;
+
+                    $rangeVal = $this->cleanText($oldRow->{$rangeKey} ?? null);
+                    $criteriaVal = $this->cleanText($oldRow->{$criteriaKey} ?? null);
+                    $criteriaMinusVal = $this->cleanText($oldRow->{$criteriaMinusKey} ?? null);
+                    $unitVal = $this->cleanText($oldRow->{$unitKey} ?? null);
+
+                    // ถ้ามีข้อมูลอย่างใดอย่างหนึ่ง
+                    if ($rangeVal || $criteriaVal || $criteriaMinusVal || $unitVal) {
+                        $dimensionSpecs[] = [
+                            'point' => 'Range ' . $i,
+                            'specs' => [
+                                [
+                                    'label' => $rangeVal ?? '',
+                                    'cri_plus' => $criteriaVal,
+                                    'cri_minus' => $criteriaMinusVal,
+                                    'cri_unit' => $unitVal,
+                                ]
+                            ]
+                        ];
+                    }
                 }
+                
+                // 🔥 เพิ่มสำหรับ External Cal Type: ดึง STDPartA/SmallBigA สำหรับ 'วัดเกลียว'
+                $prefixesExt = ['A','B'];
+                foreach ($prefixesExt as $char) {
+                    $stdPartKey = 'STDPart' . $char;
+                    $smallBigKey = 'SmallBig' . $char;
+                    
+                    $stdPartVal = $this->cleanText($oldRow->{$stdPartKey} ?? null);
+                    $smallBigVal = $oldRow->{$smallBigKey} ?? null;
+                    
+                    if (!empty($stdPartVal)) {
+                        // แปลง trend
+                        $trend = null;
+                        if ($smallBigVal !== null) {
+                            $trimVal = trim($smallBigVal);
+                            if (in_array($trimVal, ['ใหญ่ขึ้น', 'Big', 'Bigger'], true)) $trend = 'Bigger';
+                            elseif (in_array($trimVal, ['เล็กลง', 'Small', 'Smaller'], true)) $trend = 'Smaller';
+                            else $trend = $trimVal;
+                        }
+                        
+                        $dimensionSpecs[] = [
+                            'point' => $char,
+                            'specs' => [
+                                [
+                                    'label' => 'วัดเกลียว',
+                                    'standard_value' => $stdPartVal,
+                                ]
+                            ],
+                            'trend' => $trend,
+                        ];
+                    }
+                }
+            } else {
+                // 🔥 Internal/Normal: ใช้ A-Q แบบเดิม
+                $prefixes = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q'];
 
-                $specsList = [];
+                foreach ($prefixes as $char) {
+                    // หา Trend
+                    $rawVal = $oldRow->{'SmallBig' . $char} ?? null;
+                    $trend = null;
+                    if ($rawVal !== null) {
+                        $trimVal = trim($rawVal);
+                        if (in_array($trimVal, ['ใหญ่ขึ้น', 'Big', 'Bigger'], true)) $trend = 'Bigger';
+                        elseif (in_array($trimVal, ['เล็กลง', 'Small', 'Smaller'], true)) $trend = 'Smaller';
+                        else $trend = $trimVal;
+                    }
+
+                    $specsList = [];
 
                 // 🔥 ฟังก์ชันช่วยเก็บค่า (อัปเกรดใหม่: เพิ่ม $ignoreZero) 🔥
                 // $ignoreZero = true แปลว่า "ถ้าค่าเป็น 0 ให้ถือว่าไม่มีข้อมูล (Null)"
@@ -141,7 +217,8 @@ class ImportToolTypesSeeder extends Seeder
 
                     $dimensionSpecs[] = $pointObj;
                 }
-            }
+                } // end foreach
+            } // end else (Internal/Normal)
             
             // (ลบ Loop UI Options เดิมออก เพราะย้ายไปรวมใน dimension_specs แล้ว)
 

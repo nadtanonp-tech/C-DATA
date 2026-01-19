@@ -9,6 +9,35 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateToolType extends CreateRecord
 {
     protected static string $resource = ToolTypeResource::class;
+
+    /**
+     * 🔥 เปลี่ยนหัวข้อหน้าตาม type ที่เลือก
+     */
+    public function getTitle(): string
+    {
+        // Map flags to display names
+        $typeLabels = [
+            'is_kgauge' => 'K-Gauge',
+            'is_snap_gauge' => 'Snap Gauge',
+            'is_plug_gauge' => 'Plug Gauge',
+            'is_thread_plug_gauge' => 'Thread Plug Gauge',
+            'is_thread_ring_gauge' => 'Thread Ring Gauge',
+            'is_serration_plug_gauge' => 'Serration Plug Gauge',
+            'is_serration_ring_gauge' => 'Serration Ring Gauge',
+            'is_thread_plug_gauge_for_checking_fit_wear' => 'Thread Plug Gauge (Fit/Wear)',
+            'is_serration_plug_gauge_for_checking_fit_wear' => 'Serration Plug Gauge (Fit/Wear)',
+            'is_new_instruments_type' => 'New Instrument',
+            'is_external_cal_type' => 'External Calibration',
+        ];
+        
+        foreach ($typeLabels as $flag => $label) {
+            if (request()->query($flag)) {
+                return "Create {$label} Type";
+            }
+        }
+        
+        return 'Create Tool Type';
+    }
     
     protected function getCreateFormAction(): Actions\Action
     {
@@ -45,6 +74,7 @@ class CreateToolType extends CreateRecord
             'is_thread_plug_gauge_for_checking_fit_wear',
             'is_serration_plug_gauge_for_checking_fit_wear',
             'is_new_instruments_type',
+            'is_external_cal_type',
         ];
 
         foreach ($flags as $flag) {
@@ -251,6 +281,15 @@ class CreateToolType extends CreateRecord
                     ]
                 ],
             ];
+        } elseif (request()->query('is_external_cal_type')) {
+            // External Calibration Type - Range 1-5 with label=Criteria, usage, cri_plus, cri_minus, cri_unit
+            $data['dimension_specs'] = [
+                ['point' => '1', 'specs' => [['label' => 'Criteria', 'usage' => null, 'cri_plus' => null, 'cri_minus' => null, 'cri_unit' => 'mm']]],
+                ['point' => '2', 'specs' => [['label' => 'Criteria', 'usage' => null, 'cri_plus' => null, 'cri_minus' => null, 'cri_unit' => 'mm']]],
+                ['point' => '3', 'specs' => [['label' => 'Criteria', 'usage' => null, 'cri_plus' => null, 'cri_minus' => null, 'cri_unit' => 'mm']]],
+                ['point' => '4', 'specs' => [['label' => 'Criteria', 'usage' => null, 'cri_plus' => null, 'cri_minus' => null, 'cri_unit' => 'mm']]],
+                ['point' => '5', 'specs' => [['label' => 'Criteria', 'usage' => null, 'cri_plus' => null, 'cri_minus' => null, 'cri_unit' => 'mm']]],
+            ];
         }
         
         $this->form->fill($data);
@@ -277,6 +316,20 @@ class CreateToolType extends CreateRecord
         unset($data['criteria_1']);
         unset($data['criteria_2']);
         unset($data['criteria_unit_selection']);
+
+        // 🔥 แปลง cri_minus จากค่าบวกเป็นค่าลบ (ถ้า user ลืมใส่ -)
+        if (isset($data['dimension_specs']) && is_array($data['dimension_specs'])) {
+            foreach ($data['dimension_specs'] as &$point) {
+                if (isset($point['specs']) && is_array($point['specs'])) {
+                    foreach ($point['specs'] as &$spec) {
+                        if (isset($spec['cri_minus']) && is_numeric($spec['cri_minus']) && (float)$spec['cri_minus'] > 0) {
+                            $spec['cri_minus'] = -abs((float)$spec['cri_minus']);
+                        }
+                    }
+                }
+            }
+            unset($point, $spec); // ลบ reference
+        }
 
         // 🔥 กรอง dimension_specs - ลบ specs ที่ไม่มีข้อมูล และ trend ที่ว่างออก
         if (isset($data['dimension_specs']) && is_array($data['dimension_specs'])) {
@@ -314,6 +367,15 @@ class CreateToolType extends CreateRecord
                         elseif ($label === 'Cs') {
                             $csStd = $spec['cs_std'] ?? null;
                             $hasValue = $csStd !== null && $csStd !== '' && $csStd !== '0' && $csStd !== 0 && (float)$csStd !== 0.0;
+                        }
+                        // 🔥 สำหรับ External Cal Type (มี cri_plus หรือ cri_minus)
+                        elseif (isset($spec['cri_plus']) || isset($spec['cri_minus'])) {
+                            $criPlus = $spec['cri_plus'] ?? null;
+                            $criMinus = $spec['cri_minus'] ?? null;
+                            // ถ้ามี cri_plus หรือ cri_minus ที่ไม่ว่าง → ถือว่ามีค่า
+                            $hasValue = ($criPlus !== null && $criPlus !== '') || 
+                                       ($criMinus !== null && $criMinus !== '') ||
+                                       ($label !== null && $label !== ''); // หรือมี label
                         }
                         
                         // เก็บ spec นี้ถ้ามีค่าที่มีความหมาย

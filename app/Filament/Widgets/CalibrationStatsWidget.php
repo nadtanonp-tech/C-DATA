@@ -66,21 +66,16 @@ class CalibrationStatsWidget extends BaseWidget
     }
 
     /**
-     * นับเครื่องมือที่ next_cal_date อยู่ในช่วงที่กำหนด และยังไม่มีการสอบเทียบใหม่กว่า
+     * นับเครื่องมือที่ next_cal_date อยู่ในช่วงที่กำหนด
+     * 🚀 ใช้ View แทน whereNotExists ที่ช้า
      */
     private function countDueRecords($startDate, $endDate): int
     {
-        $query = DB::table('calibration_logs as cl')
-            ->whereNotExists(function ($q) {
-                $q->select(DB::raw(1))
-                    ->from('calibration_logs as newer')
-                    ->whereColumn('newer.instrument_id', 'cl.instrument_id')
-                    ->whereColumn('newer.cal_date', '>', 'cl.cal_date');
-            })
-            ->whereBetween('cl.next_cal_date', [$startDate, $endDate]);
+        $query = DB::table('latest_calibration_logs')
+            ->whereBetween('next_cal_date', [$startDate, $endDate]);
         
         if ($this->selectedLevel) {
-            $query->where('cl.cal_level', $this->selectedLevel);
+            $query->where('cal_level', $this->selectedLevel);
         }
         
         return $query->count();
@@ -88,6 +83,7 @@ class CalibrationStatsWidget extends BaseWidget
 
     /**
      * นับเครื่องมือที่เลยกำหนดตามช่วงที่เลือก
+     * 🚀 ใช้ View แทน whereNotExists ที่ช้า
      */
     private function countOverdue(): int
     {
@@ -95,29 +91,23 @@ class CalibrationStatsWidget extends BaseWidget
         $month = $this->selectedMonth ?? (int) Carbon::now()->format('m');
         $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
         
-        $query = DB::table('calibration_logs as cl')
-            ->whereNotExists(function ($q) {
-                $q->select(DB::raw(1))
-                    ->from('calibration_logs as newer')
-                    ->whereColumn('newer.instrument_id', 'cl.instrument_id')
-                    ->whereColumn('newer.cal_date', '>', 'cl.cal_date');
-            })
-            ->where('cl.next_cal_date', '<', $today);
+        $query = DB::table('latest_calibration_logs')
+            ->where('next_cal_date', '<', $today);
         
         // กรองตามเดือน/ปี
         if ($month === 0 && $year === 0) {
             // ทั้งหมด - ไม่ต้อง filter
         } elseif ($month === 0) {
-            $query->whereRaw('EXTRACT(YEAR FROM cl.next_cal_date) = ?', [$year]);
+            $query->whereRaw('EXTRACT(YEAR FROM next_cal_date) = ?', [$year]);
         } elseif ($year === 0) {
-            $query->whereRaw('EXTRACT(MONTH FROM cl.next_cal_date) = ?', [$month]);
+            $query->whereRaw('EXTRACT(MONTH FROM next_cal_date) = ?', [$month]);
         } else {
-            $query->whereRaw('EXTRACT(MONTH FROM cl.next_cal_date) = ?', [$month])
-                  ->whereRaw('EXTRACT(YEAR FROM cl.next_cal_date) = ?', [$year]);
+            $query->whereRaw('EXTRACT(MONTH FROM next_cal_date) = ?', [$month])
+                  ->whereRaw('EXTRACT(YEAR FROM next_cal_date) = ?', [$year]);
         }
         
         if ($this->selectedLevel) {
-            $query->where('cl.cal_level', $this->selectedLevel);
+            $query->where('cal_level', $this->selectedLevel);
         }
         
         return $query->count();

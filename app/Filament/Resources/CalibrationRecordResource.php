@@ -935,19 +935,6 @@ class CalibrationRecordResource extends Resource
                     ->color(fn (string $state): string => match ($state) { 'A' => 'success', 'B' => 'warning', 'C' => 'danger', default => 'gray' }),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('result_status')
-                    ->label('ผลการ Cal')
-                    ->options([
-                        'Pass' => 'Pass',
-                        'Reject' => 'Reject',
-                    ]),
-                Tables\Filters\SelectFilter::make('cal_level')
-                    ->label('Level')
-                    ->options([
-                        'A' => 'Level A',
-                        'B' => 'Level B',
-                        'C' => 'Level C',
-                    ]),
                 Tables\Filters\SelectFilter::make('calibration_type')
                     ->label('ประเภทการสอบเทียบ')
                     ->options([
@@ -967,6 +954,8 @@ class CalibrationRecordResource extends Resource
                         'ChamferGauge' => 'Chamfer Gauge',
                     ])
                     ->searchable()
+                    ->columnSpan(2)
+                    ->native(false)
                     ->preload(),
                 Tables\Filters\Filter::make('cal_date')
                     ->form([
@@ -981,7 +970,22 @@ class CalibrationRecordResource extends Resource
                         return $query
                             ->when($data['from'], fn ($q, $date) => $q->whereDate('cal_date', '>=', $date))
                             ->when($data['until'], fn ($q, $date) => $q->whereDate('cal_date', '<=', $date));
-                    }),
+                    }),    
+                Tables\Filters\SelectFilter::make('result_status')
+                    ->label('ผลการ Cal')
+                    ->options([
+                        'Pass' => 'Pass',
+                        'Reject' => 'Reject',
+                    ])
+                    ->native(false),
+                Tables\Filters\SelectFilter::make('cal_level')
+                    ->label('Level')
+                    ->options([
+                        'A' => 'Level A',
+                        'B' => 'Level B',
+                        'C' => 'Level C',
+                    ])
+                    ->native(false),
             ], layout: Tables\Enums\FiltersLayout::AboveContentCollapsible)
             ->actions([Actions\ViewAction::make(), Actions\EditAction::make()->color('warning'), Actions\DeleteAction::make()])
             ->bulkActions([Tables\Actions\BulkActionGroup::make([Tables\Actions\DeleteBulkAction::make()])]);

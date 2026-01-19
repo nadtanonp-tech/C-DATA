@@ -18,6 +18,9 @@ class MonthSelectorWidget extends Widget implements HasForms
     protected int | string | array $columnSpan = 'full';
     
     protected static ?int $sort = 1;
+    
+    // 🚀 Lazy loading - ทำให้ widget โหลดแบบ async ไม่บล็อก navigation
+    protected static bool $isLazy = true;
 
     public ?int $selectedMonth = null;
     public ?int $selectedYear = null;

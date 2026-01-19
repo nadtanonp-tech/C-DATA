@@ -8,51 +8,80 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class InstrumentStatsWidget extends BaseWidget
 {
+    protected static ?string $pollingInterval = null;
+    
+    // 🚀 Lazy loading - ทำให้ widget โหลดแบบ async ไม่บล็อก navigation
+    protected static bool $isLazy = true;
+    
+    // ใช้ 'full' เพื่อให้ Widget กว้างเต็มหน้าจอ
+    protected int | string | array $columnSpan = 'full';
+    
+    // กำหนดจำนวน columns สำหรับ Stats (4 columns ตาม Filament รองรับ)
+    protected function getColumns(): int
+    {
+        return 4;
+    }
+    
     protected function getStats(): array
     {
-        // นับจำนวนเครื่องมือทั้งหมด
         $totalInstruments = Instrument::count();
-        
-        // นับจำนวนเครื่องมือที่ใช้งาน (สถานะ: ใช้งาน)
         $activeInstruments = Instrument::where('status', 'ใช้งาน')->count();
-        
-        // นับจำนวนเครื่องมือสำรอง (สถานะ: Spare)
         $spareInstruments = Instrument::where('status', 'Spare')->count();
-        
-        // นับจำนวนเครื่องมือที่ยกเลิก (สถานะ: ยกเลิก)
-        $cancelledInstruments = Instrument::where('status', 'ยกเลิก')->count();
-        
-        // นับจำนวนเครื่องมือที่สูญหาย (สถานะ: สูญหาย)
-        $lostInstruments = Instrument::where('status', 'สูญหาย')->count();
-        
-        // นับจำนวนเครื่องมือที่ส่งซ่อม
-        $repairingInstruments = Instrument::where('status', 'ส่งซ่อม')->count();
+        $lostCancelledInstruments = Instrument::whereIn('status', ['สูญหาย', 'ยกเลิก'])->count();
+        $mastertypeInstruments = Instrument::where('equip_type', 'Master')->count();
+        $workingtypeInstruments = Instrument::where('equip_type', 'Working')->count();
+        $internaltypeInstruments = Instrument::where('cal_place', 'Internal')->count();
+        $externaltypeInstruments = Instrument::where('cal_place', 'External')->count();
+        $repairtypeInstruments = Instrument::where('status', 'ส่งซ่อม')->count();
 
         return [
+            // 🔥 แถวที่ 1: เครื่องมือทั้งหมด, ใช้งาน, สำรอง, สูญหาย, ส่งซ่อม
             Stat::make('เครื่องมือทั้งหมด', number_format($totalInstruments))
                 ->description('จำนวนเครื่องมือในระบบ')
                 ->descriptionIcon('heroicon-m-wrench-screwdriver')
                 ->color('primary'),
-            Stat::make('ใช้งาน', number_format($activeInstruments))
+                
+            Stat::make('Active', number_format($activeInstruments))
                 ->description('สถานะ: ใช้งาน')
                 ->descriptionIcon('heroicon-m-check-circle')
                 ->color('success'),
-            Stat::make('สำรอง (Spare)', number_format($spareInstruments))
-                ->description('สถานะ: Spare')
+                
+            Stat::make('Spare', number_format($spareInstruments))
+                ->description('สถานะ: สํารอง')
                 ->descriptionIcon('heroicon-m-archive-box')
                 ->color('info'),
-            Stat::make('ยกเลิก', number_format($cancelledInstruments))
-                ->description('สถานะ: ยกเลิก')
-                ->descriptionIcon('heroicon-m-x-circle')
-                ->color('danger'),
-            Stat::make('สูญหาย', number_format($lostInstruments))
-                ->description('สถานะ: สูญหาย')
+
+            Stat::make('Repair', number_format($repairtypeInstruments))
+                ->description('สถานะ: ส่งซ่อม')
+                ->descriptionIcon('heroicon-m-wrench')
+                ->color('warning'),
+                
+            Stat::make('Inactive/Lost', number_format($lostCancelledInstruments))
+                ->description('สถานะ: สูญหาย/ยกเลิก')
                 ->descriptionIcon('heroicon-m-exclamation-triangle')
                 ->color('danger'),
-            Stat::make('ส่งซ่อม', number_format($repairingInstruments))
-                ->description('สถานะ: ส่งซ่อม')
-                ->descriptionIcon('heroicon-m-cog-6-tooth')
+
+            Stat::make('Working', number_format($workingtypeInstruments))
+                ->description('ประเภท: Working')
+                ->descriptionIcon('heroicon-m-wrench')
+                ->color('info'),
+                
+            Stat::make('Master', number_format($mastertypeInstruments))
+                ->description('ประเภท: Master')
+                ->descriptionIcon('heroicon-m-star')
                 ->color('warning'),
+                
+            Stat::make('Internal', number_format($internaltypeInstruments))
+                ->description('Cal: ภายใน')
+                ->descriptionIcon('heroicon-m-building-office')
+                ->color('info'),
+                
+            Stat::make('External', number_format($externaltypeInstruments))
+                ->description('Cal: ภายนอก')
+                ->descriptionIcon('heroicon-m-building-office-2')
+                ->color('warning'),
+            
+           
         ];
     }
 }

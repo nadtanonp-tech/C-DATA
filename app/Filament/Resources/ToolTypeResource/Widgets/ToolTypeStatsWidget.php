@@ -9,6 +9,11 @@ use Illuminate\Support\Facades\DB;
 
 class ToolTypeStatsWidget extends BaseWidget
 {
+    protected static ?string $pollingInterval = null;
+    
+    // 🚀 Lazy loading - ทำให้ widget โหลดแบบ async ไม่บล็อก navigation
+    protected static bool $isLazy = true;
+    
     protected function getStats(): array
     {
         // นับจำนวน Type ทั้งหมด

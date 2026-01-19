@@ -46,19 +46,14 @@ class DueThisMonthWidget extends BaseWidget
     }
 
     /**
-     * ดึง record IDs ที่ครบกำหนดและยังไม่ได้สอบเทียบ (ใช้ NOT EXISTS ที่เร็วกว่า LEFT JOIN)
+     * ดึง record IDs ที่ครบกำหนดและยังไม่ได้สอบเทียบ
+     * 🚀 ใช้ View แทน whereNotExists ที่ช้า
      */
     public function getDueRecordIds($startDate, $endDate): array
     {
-        return DB::table('calibration_logs as cl')
-            ->whereNotExists(function ($query) {
-                $query->select(DB::raw(1))
-                    ->from('calibration_logs as newer')
-                    ->whereColumn('newer.instrument_id', 'cl.instrument_id')
-                    ->whereColumn('newer.cal_date', '>', 'cl.cal_date');
-            })
-            ->whereBetween('cl.next_cal_date', [$startDate, $endDate])
-            ->pluck('cl.id')
+        return DB::table('latest_calibration_logs')
+            ->whereBetween('next_cal_date', [$startDate, $endDate])
+            ->pluck('id')
             ->toArray();
     }
 

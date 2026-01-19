@@ -60,41 +60,82 @@ class ImportCalThreadRingSeeder extends Seeder
             
             $dimensionSpecs = $toolType ? json_decode($toolType->dimension_specs, true) : [];
             
-            // 🔥 สร้าง readings จาก dimension_specs (วัดเกลียว)
-            // Format ตรงกับที่ CalibrationThreadRingGaugeResource form ต้องการ
-            $readings = [];
-            
             // 🔥 ดึง measurement จาก Result field (ข้อความ)
             $measurementValue = isset($row->Result) ? trim($row->Result) : null;
             if ($measurementValue === '') $measurementValue = null;
             
-            foreach ($dimensionSpecs as $spec) {
-                $point = $spec['point'] ?? null;
-                if (!$point) continue;
-                
-                // ดึง specs สำหรับ Point นี้
-                if (isset($spec['specs']) && is_array($spec['specs'])) {
-                    foreach ($spec['specs'] as $specItem) {
-                        $label = $specItem['label'] ?? '';
-                        
-                        // สำหรับ วัดเกลียว - ใช้ standard_value
-                        if ($label === 'วัดเกลียว') {
-                            // 🔥 Format ตรงกับ form - ไม่มี Judgement/grade
-                            $readings[] = [
-                                'point' => $point,
-                                'label' => 'วัดเกลียว',
-                                'trend' => $spec['trend'] ?? null,
-                                'measurement' => $measurementValue, // 🔥 ดึงจาก Result field
-                            ];
+            // 🔥 สร้าง readings จาก dimension_specs (เพื่อให้ได้ point, trend, standard_value ถูกต้อง)
+            $readings = [];
+            
+            if (!empty($dimensionSpecs)) {
+                // มี dimension_specs → สร้าง reading จากแต่ละ point
+                foreach ($dimensionSpecs as $spec) {
+                    $point = $spec['point'] ?? 'A';
+                    $trend = $spec['trend'] ?? null;
+                    
+                    // ดึง standard_value จาก specs (วัดเกลียว)
+                    $standardValue = null;
+                    if (isset($spec['specs']) && is_array($spec['specs'])) {
+                        foreach ($spec['specs'] as $specItem) {
+                            if (($specItem['label'] ?? '') === 'วัดเกลียว') {
+                                $standardValue = $specItem['standard_value'] ?? null;
+                                break;
+                            }
                         }
                     }
+                    
+                    $readings[] = [
+                        'point' => $point,
+                        'label' => 'วัดเกลียว',
+                        'trend' => $trend,
+                        'standard_value' => $standardValue,
+                        'measurement' => $measurementValue, // 🔥 ใช้ค่าเดียวกับทุก point (ข้อมูลเก่ามีแค่ค่าเดียว)
+                    ];
                 }
+            } else {
+                // ไม่มี dimension_specs → สร้าง default point A
+                $readings[] = [
+                    'point' => 'A',
+                    'label' => 'วัดเกลียว',
+                    'trend' => null,
+                    'standard_value' => null,
+                    'measurement' => $measurementValue,
+                ];
+            }
+            
+            // 🔥 ตรวจสอบ code_no pattern เพื่อกำหนด calibration_type
+            $codeNo = strtoupper(trim($row->CodeNo));
+            $calibrationType = 'ThreadRingGauge'; // default
+            
+            if (preg_match('/^\d-05-/', $codeNo)) {
+                $calibrationType = 'ThreadRingGauge';
+            } elseif (preg_match('/^8-07-/', $codeNo)) {
+                $calibrationType = 'SerrationRingGauge';
+            } elseif (preg_match('/^\d-04-/', $codeNo)) {
+                // 🔥 8-04-xxxx ใน CALThrSerRing → import เป็น ThreadRingGauge (วัดเกลียว)
+                $calibrationType = 'ThreadRingGauge';
+            } else {
+                $this->command->warn("⚠️ ไม่รู้จัก pattern: {$codeNo} - ใช้ ThreadRingGauge");
+            }
+            
+            // 🔥 ดึง Master Reference จาก CALMaster1
+            $masterRefValue = isset($row->CALMaster1) ? trim($row->CALMaster1) : null;
+            if ($masterRefValue === '') $masterRefValue = null;
+            
+            // 🔥 สร้าง master_references array
+            $masterReferences = [];
+            if ($masterRefValue) {
+                $masterReferences[] = [
+                    'master_id' => null,
+                    'master_name' => $masterRefValue,
+                ];
             }
             
             // 🔥 สร้าง calibration_data
             $calData = [
-                'calibration_type' => 'ThreadRingGauge', // 🔥 สำหรับแยกประเภท
+                'calibration_type' => $calibrationType,
                 'readings' => $readings,
+                'master_references' => $masterReferences,
             ];
 
             // 3. เตรียมข้อมูลบันทึก
@@ -103,6 +144,7 @@ class ImportCalThreadRingSeeder extends Seeder
                 'cal_date'      => $this->parseDate($row->CalDate),
                 'next_cal_date' => $this->parseDate($row->DueDate),
                 'cal_place'     => 'Internal',
+                'calibration_type' => $calibrationType, // 🔥 เพิ่ม column
                 'calibration_data' => json_encode($calData, JSON_UNESCAPED_UNICODE),
                 
                 'environment'   => json_encode([

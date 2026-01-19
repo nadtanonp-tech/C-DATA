@@ -920,12 +920,14 @@ class CalibrationPlugGaugeResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('result_status')
                     ->label('ผลการ Cal')
+                    ->native(false)
                     ->options([
                         'Pass' => 'Pass',
                         'Reject' => 'Reject',
                     ]),
                 Tables\Filters\SelectFilter::make('cal_level')
                     ->label('Level')
+                    ->native(false)
                     ->options([
                         'A' => 'Level A',
                         'B' => 'Level B',

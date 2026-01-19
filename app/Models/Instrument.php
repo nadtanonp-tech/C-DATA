@@ -47,6 +47,12 @@ class Instrument extends Model
         return $this->belongsTo(Department::class);
     }
 
+    // ความสัมพันธ์: ประวัติการเปลี่ยนสถานะ
+    public function statusHistories(): HasMany
+    {
+        return $this->hasMany(InstrumentStatusHistory::class);
+    }
+
     /**
      * 🔥 Boot Method - ทำงานอัตโนมัติทุกครั้งที่ Save
      */

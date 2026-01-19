@@ -25,6 +25,9 @@ use Filament\Tables\Actions\Action;
 use Filament\Forms\Set; // <--- เพิ่มตัวนี้
 use Filament\Forms\Components\Repeater;
 use App\Models\ToolType;
+use App\Models\InstrumentStatusHistory;
+use App\Filament\Resources\InstrumentResource\Widgets\InstrumentStatsWidget;
+use App\Filament\Resources\InstrumentResource\RelationManagers\StatusHistoriesRelationManager;
 
 class InstrumentResource extends Resource
 {
@@ -231,8 +234,8 @@ class InstrumentResource extends Resource
                                 ->options([
                                     'ใช้งาน' => 'Active',
                                     'Spare' => 'Spare',
-                                    'ยกเลิก' => 'Inactive',
                                     'ส่งซ่อม' => 'Repair',
+                                    'ยกเลิก' => 'Inactive',
                                     'สูญหาย' => 'Lost',
                                 ])
                                 ->default('Spare')
@@ -331,15 +334,7 @@ class InstrumentResource extends Resource
                     default => 'gray',
                 }),
 
-                // 7. วันครบกำหนดสอบเทียบ (แจ้งเตือนสีแดงถ้าเลยกำหนด)
-                TextColumn::make('next_cal_date')
-                    ->label('Due Date')
-                    ->date('d M Y')
-                    ->sortable()
-                    // ถ้าวันที่น้อยกว่าวันนี้ (เลยกำหนด) ให้เป็นสีแดง
-                    ->color(fn ($state) => $state && $state < now() ? 'danger' : 'success'),
-
-                // 8. ผู้รับผิดชอบ
+                // 7. ผู้รับผิดชอบ
                 TextColumn::make('owner_name')
                     ->label('Owner')
                     ->searchable()
@@ -355,69 +350,124 @@ class InstrumentResource extends Resource
                         'ส่งซ่อม' => 'Repair (ส่งซ่อม)',
                         'สูญหาย' => 'Lost (สูญหาย)',
                     ])
-                    ->multiple()
-                    ->preload(),
+                    ->native(false),
                 Tables\Filters\SelectFilter::make('equip_type')
                     ->label('ประเภทการใช้งาน')
                     ->options([
                         'Working' => 'Working (ใช้งานทั่วไป)',
                         'Master' => 'Master (เครื่องมือมาตรฐาน)',
-                    ]),
+                    ])
+                    ->native(false),
                 Tables\Filters\SelectFilter::make('cal_place')
                     ->label('สถานที่สอบเทียบ')
                     ->options([
                         'Internal' => 'Internal (ภายใน)',
                         'External' => 'External (ภายนอก)',
-                    ]),
-                Tables\Filters\SelectFilter::make('tool_type_id')
+                    ])
+                    ->native(false),
+                Tables\Filters\SelectFilter::make('tool_type_name')
                     ->label('Type Name')
-                    ->relationship('toolType', 'name')
+                    ->options(fn () => \App\Models\ToolType::query()
+                        ->distinct()
+                        ->pluck('name', 'name')
+                        ->toArray())
                     ->searchable()
                     ->preload()
+                    ->query(function (Builder $query, array $data): Builder {
+                        if (empty($data['value'])) {
+                            return $query;
+                        }
+                        return $query->whereHas('toolType', function (Builder $q) use ($data) {
+                            $q->where('name', $data['value']);
+                        });
+                    })
                     ->columnSpan(2),
                 Tables\Filters\SelectFilter::make('code_type')
                     ->label('ID Code Type')
                     ->options(fn () => \App\Models\ToolType::pluck('code_type', 'code_type')->toArray())
                     ->searchable()
-                    ->preload(),
+                    ->preload()
+                    ->query(function (Builder $query, array $data): Builder {
+                        if (empty($data['value'])) {
+                            return $query;
+                        }
+                        return $query->whereHas('toolType', function (Builder $q) use ($data) {
+                            $q->where('code_type', $data['value']);
+                        });
+                    }),
                 Tables\Filters\SelectFilter::make('department_id')
                     ->label('แผนก')
                     ->relationship('department', 'name')
                     ->searchable()
                     ->preload(),
+                Tables\Filters\Filter::make('receive_date')
+                    ->label('วันที่รับเครื่อง')
+                    ->form([
+                        Forms\Components\DatePicker::make('from')
+                            ->label('ตั้งแต่'),
+                        Forms\Components\DatePicker::make('until')
+                            ->label('ถึง'),
+                    ])
+                    ->columns(2)
+                    ->columnSpan(2)
+                    ->query(function (Builder $query, array $data) : Builder{
+                        return $query
+                            ->when($data['from'], fn (Builder $q, $date) => $q->whereDate('receive_date', '>=', $date))
+                            ->when($data['until'], fn (Builder $q, $date) => $q->whereDate('receive_date', '<=', $date));
+                    }),
             ], layout: Tables\Enums\FiltersLayout::AboveContentCollapsible)
             ->actions([
+                Tables\Actions\ViewAction::make()
+                    ->color('gray'),
                 Tables\Actions\EditAction::make()
                     ->color('warning'),
-                // 🔴 ปุ่มยกเลิกเครื่องมือ (Custom Action) 🔴
-                Action::make('cancel_instrument')
-                    ->label('ยกเลิก') // ชื่อปุ่ม
-                    ->icon('heroicon-o-x-circle') // ไอคอนกากบาท
-                    ->color('danger') // สีแดง
-                    ->visible(fn (Instrument $record) => $record->status !== 'ยกเลิก')
+                // � ปุ่มเปลี่ยนสถานะเครื่องมือ (Custom Action) �
+                Action::make('change_status')
+                    ->label('Set Status') // ชื่อปุ่ม
+                    ->icon('heroicon-m-wrench') // ไอคอนแก้ไข
+                    ->color('info')
                     ->form([
-                        DatePicker::make('cancellation_date')
-                            ->label('วันที่ยกเลิก')
-                            ->default(now()) // ค่าเริ่มต้นเป็นวันนี้
-                            ->required(),
-                        Textarea::make('cancel_reason')
-                            ->label('เหตุผลที่ยกเลิก')
+                        Select::make('new_status')
+                            ->label('เลือกสถานะใหม่')
+                            ->options([
+                                'ใช้งาน' => 'ใช้งาน (Active)',
+                                'Spare' => 'สำรอง (Spare)',
+                                'ส่งซ่อม' => 'ส่งซ่อม (Repair)',
+                                'ยกเลิก' => 'ยกเลิก (Inactive)',
+                                'สูญหาย' => 'สูญหาย (Lost)',
+                            ])
+                            ->required()
+                            ->native(false)
+                            ->default(fn (Instrument $record) => $record->status),
+                        Textarea::make('status_reason')
+                            ->label('เหตุผลในการเปลี่ยนสถานะ')
                             ->required()
                             ->rows(3)
-                            ->placeholder('เช่น เสียหายซ่อมไม่ได้, สูญหาย, หมดอายุการใช้งาน'),
+                            ->placeholder('เช่น เสียหายซ่อมไม่ได้, สูญหาย, หมดอายุการใช้งาน, กลับมาใช้งานได้แล้ว'),
                     ])
                     ->action(function (Instrument $record, array $data) {
+                        $oldStatus = $record->status;
+                        $newStatus = $data['new_status'];
+                        
+                        // 📝 บันทึกประวัติการเปลี่ยนสถานะลงตารางใหม่
+                        InstrumentStatusHistory::create([
+                            'instrument_id' => $record->id,
+                            'old_status' => $oldStatus,
+                            'new_status' => $newStatus,
+                            'reason' => $data['status_reason'],
+                            'changed_at' => now(),
+                            'changed_by' => auth()->id(),
+                        ]);
+                        
+                        // อัปเดตสถานะในตาราง instruments
                         $record->update([
-                            'status' => 'ยกเลิก', // เปลี่ยนสถานะ
-                            'cancellation_date' => $data['cancellation_date'], // บันทึกวันที่
-                            // เอาเหตุผลไปต่อท้ายใน Remark เดิม (จะได้ไม่ทับของเก่า)
-                            'remark' => $record->remark . "\n[ยกเลิกเมื่อ " . now()->format('d/m/Y') . "]: " . $data['cancel_reason'],
+                            'status' => $newStatus,
                         ]);
                     })
                     // ข้อความยืนยันความปลอดภัย
                     ->requiresConfirmation()
-                    ->modalHeading('ยืนยันการยกเลิกเครื่องมือ')
-                    ->modalDescription('คุณต้องการเปลี่ยนสถานะเครื่องมือนี้เป็น "ยกเลิก" ใช่หรือไม่?')
+                    ->modalHeading('ยืนยันการเปลี่ยนสถานะเครื่องมือ')
+                    ->modalDescription('คุณต้องการเปลี่ยนสถานะเครื่องมือนี้ใช่หรือไม่?')
                     ->modalSubmitActionLabel('ยืนยัน (Confirm)'),
                 ])
                 ->bulkActions([
@@ -430,7 +480,7 @@ class InstrumentResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            StatusHistoriesRelationManager::class,
         ];
     }
 
@@ -439,7 +489,15 @@ class InstrumentResource extends Resource
         return [
             'index' => Pages\ListInstruments::route('/'),
             'create' => Pages\CreateInstrument::route('/create'),
+            'view' => Pages\ViewInstrument::route('/{record}'),
             'edit' => Pages\EditInstrument::route('/{record}/edit'),
+        ];
+    }
+
+    public static function getWidgets(): array
+    {
+        return [
+            InstrumentStatsWidget::class,
         ];
     }
     

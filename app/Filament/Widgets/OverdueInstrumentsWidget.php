@@ -47,6 +47,7 @@ class OverdueInstrumentsWidget extends BaseWidget
 
     /**
      * ดึง record IDs ที่เลยกำหนดและยังไม่ได้สอบเทียบ
+     * 🚀 ใช้ View แทน whereNotExists ที่ช้า
      */
     public function getOverdueRecordIds(): array
     {
@@ -54,31 +55,25 @@ class OverdueInstrumentsWidget extends BaseWidget
         $month = $this->selectedMonth ?? (int) Carbon::now()->format('m');
         $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
         
-        $query = DB::table('calibration_logs as cl')
-            ->whereNotExists(function ($q) {
-                $q->select(DB::raw(1))
-                    ->from('calibration_logs as newer')
-                    ->whereColumn('newer.instrument_id', 'cl.instrument_id')
-                    ->whereColumn('newer.cal_date', '>', 'cl.cal_date');
-            })
-            ->where('cl.next_cal_date', '<', $today);
+        $query = DB::table('latest_calibration_logs')
+            ->where('next_cal_date', '<', $today);
         
         // กรองตามเดือน/ปี ของ next_cal_date (วันที่ครบกำหนด)
         if ($month === 0 && $year === 0) {
             // ทุกเดือน ทุกปี - ไม่ต้อง filter
         } elseif ($month === 0) {
             // ทุกเดือน ปีที่เลือก
-            $query->whereRaw('EXTRACT(YEAR FROM cl.next_cal_date) = ?', [$year]);
+            $query->whereRaw('EXTRACT(YEAR FROM next_cal_date) = ?', [$year]);
         } elseif ($year === 0) {
             // เดือนที่เลือก ทุกปี
-            $query->whereRaw('EXTRACT(MONTH FROM cl.next_cal_date) = ?', [$month]);
+            $query->whereRaw('EXTRACT(MONTH FROM next_cal_date) = ?', [$month]);
         } else {
             // เดือนและปีที่เลือก
-            $query->whereRaw('EXTRACT(MONTH FROM cl.next_cal_date) = ?', [$month])
-                  ->whereRaw('EXTRACT(YEAR FROM cl.next_cal_date) = ?', [$year]);
+            $query->whereRaw('EXTRACT(MONTH FROM next_cal_date) = ?', [$month])
+                  ->whereRaw('EXTRACT(YEAR FROM next_cal_date) = ?', [$year]);
         }
         
-        return $query->pluck('cl.id')->toArray();
+        return $query->pluck('id')->toArray();
     }
 
     public function table(Table $table): Table

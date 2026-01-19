@@ -37,10 +37,10 @@ class CalibrationThreadRingGaugeResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        // 🔥 กรอง Thread Ring Gauge: ใช้ calibration_type column (มี index)
+        // 🔥 กรอง Thread Ring Gauge: รองรับทั้ง 2 ประเภท
         return parent::getEloquentQuery()
             ->with(['instrument.toolType'])
-            ->where('calibration_type', 'ThreadRingGauge');
+            ->whereIn('calibration_type', ['ThreadRingGauge', 'SerrationRingGauge']);
     } 
 
     public static function form(Form $form): Form
@@ -425,19 +425,28 @@ class CalibrationThreadRingGaugeResource extends Resource
                     ->badge(),
             ])
             ->filters([
+                Tables\Filters\SelectFilter::make('calibration_type')
+                    ->label('ประเภท')
+                    ->options([
+                        'ThreadRingGauge' => 'Thread Ring Gauge',
+                        'SerrationRingGauge' => 'Serration Ring Gauge',
+                    ])
+                    ->native(false),
                 Tables\Filters\SelectFilter::make('result_status')
                     ->label('ผลการ Cal')
                     ->options([
                         'Pass' => 'Pass',
                         'Reject' => 'Reject',
-                    ]),
+                    ])
+                    ->native(false),
                 Tables\Filters\SelectFilter::make('cal_level')
                     ->label('Level')
                     ->options([
                         'A' => 'Level A',
                         'B' => 'Level B',
                         'C' => 'Level C',
-                    ]),
+                    ])
+                    ->native(false),
                 Tables\Filters\Filter::make('cal_date')
                     ->form([
                         Forms\Components\DatePicker::make('from')

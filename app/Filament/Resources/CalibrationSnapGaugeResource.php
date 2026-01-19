@@ -722,14 +722,16 @@ class CalibrationSnapGaugeResource extends Resource
                     ->options([
                         'Pass' => 'Pass',
                         'Reject' => 'Reject',
-                    ]),
+                    ])
+                    ->native(false),
                 Tables\Filters\SelectFilter::make('cal_level')
                     ->label('Level')
                     ->options([
                         'A' => 'Level A',
                         'B' => 'Level B',
                         'C' => 'Level C',
-                    ]),
+                    ])
+                    ->native(false),
                 Tables\Filters\Filter::make('cal_date')
                     ->form([
                         Forms\Components\DatePicker::make('from')

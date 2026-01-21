@@ -61,9 +61,25 @@ class ToolTypeResource extends Resource
 
                             TextInput::make('drawing_no')
                                 ->label('Drawing No.')
-                                ->unique(ignoreRecord: true)
                                 ->columnSpan(1)
-                                ->required(),
+                                ->required()
+                                ->rules([
+                                    fn ($record) => function (string $attribute, $value, \Closure $fail) use ($record) {
+                                        if ($value === '-') {
+                                            return;
+                                        }
+
+                                        $query = \App\Models\ToolType::query()->where('drawing_no', $value);
+                                        
+                                        if ($record) {
+                                            $query->where('id', '!=', $record->getKey());
+                                        }
+
+                                        if ($query->exists()) {
+                                            $fail('The drawing No. has already been taken.');
+                                        }
+                                    },
+                                ]),
 
                             TextInput::make('size')
                                 ->columnSpan(2)

@@ -12,6 +12,9 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\On;
 
+// 🔧 Cache TTL constant - 30 minutes
+if (!defined('DASHBOARD_CACHE_TTL')) define('DASHBOARD_CACHE_TTL', 1800);
+
 class DueThisMonthWidget extends BaseWidget
 {
     protected static ?string $heading = 'เครื่องมือครบกำหนดสอบเทียบ';
@@ -144,10 +147,75 @@ class DueThisMonthWidget extends BaseWidget
                         default => 'gray',
                     }),
             ])
+            ->actions([
+                Tables\Actions\Action::make('calibrate')
+                    ->label('ไปสอบเทียบ')
+                    ->icon('heroicon-o-clipboard-document-check')
+                    ->color('success')
+                    ->url(fn ($record) => $this->getCalibrationUrl($record))
+                    ->openUrlInNewTab(),
+            ])
             ->defaultSort('next_cal_date', 'asc')
             ->emptyStateHeading('ไม่มีเครื่องมือครบกำหนดในช่วงที่เลือก')
             ->emptyStateDescription('เครื่องมือทั้งหมดยังไม่ถึงกำหนดสอบเทียบ หรือสอบเทียบเสร็จแล้ว')
             ->emptyStateIcon('heroicon-o-calendar');
+    }
+
+    /**
+     * 🔗 Get the correct calibration URL based on calibration_type from last calibration record
+     */
+    private function getCalibrationUrl($record): string
+    {
+        $instrumentId = $record->instrument_id;
+        $calibrationType = $record->calibration_type ?? null;
+        
+        // Determine the correct route based on calibration_type
+        $routeInfo = match ($calibrationType) {
+            // K-Gauge
+            'KGauge' => ['route' => 'filament.admin.calibration-report.resources.calibration-k-gauge.create', 'type' => null],
+            
+            // Snap Gauge
+            'SnapGauge' => ['route' => 'filament.admin.calibration-report.resources.calibration-snap-gauge.create', 'type' => null],
+            
+            // Plug Gauge
+            'PlugGauge' => ['route' => 'filament.admin.calibration-report.resources.calibration-plug-gauge.create', 'type' => null],
+            
+            // Thread Plug Gauge
+            'ThreadPlugGauge', 'SerrationPlugGauge' => ['route' => 'filament.admin.calibration-report.resources.calibration-thread-plug-gauge.create', 'type' => null],
+            
+            // Thread Ring Gauge
+            'ThreadRingGauge', 'SerrationRingGauge' => ['route' => 'filament.admin.calibration-report.resources.calibration-thread-ring-gauge.create', 'type' => null],
+            
+            // Thread Plug Gauge Fit Wear
+            'ThreadPlugGaugeFitWear' => ['route' => 'filament.admin.calibration-report.resources.calibration-thread-plug-gauge-fit-wear.create', 'type' => null],
+            
+            // Instrument Calibration with specific type
+            'VernierSpecial' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'vernier_special'],
+            'VernierDigital' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'vernier_digital'],
+            'VernierCaliper' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'vernier_caliper'],
+            'DepthVernier' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'depth_vernier'],
+            'VernierHightGauge' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'vernier_hight_gauge'],
+            'DialVernierHightGauge' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'dial_vernier_hight_gauge'],
+            'MicroMeter' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'micro_meter'],
+            'DialCaliper' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'dial_caliper'],
+            'DialIndicator' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'dial_indicator'],
+            'DialTestIndicator' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'dial_test_indicator'],
+            'ThicknessGauge' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'thickness_gauge'],
+            'ThicknessCaliper' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'thickness_caliper'],
+            'CylinderGauge' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'cylinder_gauge'],
+            'ChamferGauge' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'chamfer_gauge'],
+            'PressureGauge' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'pressure_gauge'],
+            
+            // Default: Instrument Calibration without specific type
+            default => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => null],
+        };
+        
+        $params = ['instrument_id' => $instrumentId];
+        if ($routeInfo['type']) {
+            $params['type'] = $routeInfo['type'];
+        }
+        
+        return route($routeInfo['route'], $params);
     }
 
     public function getTableHeading(): string
@@ -156,9 +224,9 @@ class DueThisMonthWidget extends BaseWidget
         $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
         $level = $this->selectedLevel ?? '';
         
-        // 🚀 ใช้ cache เพื่อไม่ต้อง query นับจำนวนทุกครั้ง (cache 5 นาที)
+        // 🚀 ใช้ cache เพื่อไม่ต้อง query นับจำนวนทุกครั้ง (cache 30 นาที)
         $cacheKey = "due_count_{$month}_{$year}_{$level}";
-        $count = Cache::remember($cacheKey, 300, function () use ($month, $year) {
+        $count = Cache::remember($cacheKey, DASHBOARD_CACHE_TTL, function () use ($month, $year) {
             $currentYear = (int) Carbon::now()->format('Y');
             $minYear = $currentYear - 10;
             $maxYear = $currentYear + 5;

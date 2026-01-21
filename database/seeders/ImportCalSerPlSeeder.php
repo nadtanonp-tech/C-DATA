@@ -28,6 +28,7 @@ class ImportCalSerPlSeeder extends Seeder
 
             // 3. ปั้นก้อน JSON (Mapping Field เก่า -> โครงสร้างใหม่)
             $calData = [
+                'calibration_type' => 'SerrationPlugGauge', // 🔥 เพิ่ม Type ลง JSON
                 'Major' => [
                     '1-1' => $row->{'Major1-1'},
                     '1-2' => $row->{'Major1-2'},
@@ -59,6 +60,7 @@ class ImportCalSerPlSeeder extends Seeder
             // 5. เตรียมข้อมูลบันทึก
             $batchData[] = [
                 'instrument_id' => $instrument->id,
+                'calibration_type' => 'SerrationPlugGauge', // 🔥 เพิ่ม Type ลง Column
                 'cal_date'      => $calDate,
                 'next_cal_date' => $dueDate,
                 'cal_place'     => 'Internal', // เดาว่าเป็น Internal เพราะมีข้อมูลละเอียด

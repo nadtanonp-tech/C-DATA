@@ -27,7 +27,7 @@
         {{-- แสดงข้อมูลเพิ่มเติม --}}
         <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
             <p class="font-medium">{{ $instrument->toolType->name ?? 'N/A' }}</p>
-            <p>Code: {{ $instrument->toolType->code ?? 'N/A' }}</p>
+            <p>Drawing No. {{ $instrument->toolType->drawing_no ?? 'N/A' }}</p>
         </div>
     @else
         {{-- กรณีไม่มีรูปภาพ --}}

@@ -22,7 +22,7 @@ class ImportCalVernierOtherSeeder extends Seeder
 
         // 🔥 ลบข้อมูลเก่าที่มาจาก VernierOther ก่อน re-import
         $calibrationTypes = [
-            'VernierSpecial', 'Micrometer', 'DialCaliper', 'DialIndicator',
+            'VernierSpecial', 'MicroMeter', 'DialCaliper', 'DialIndicator',
             'DialTestIndicator', 'ThicknessGauge', 'ThicknessCaliper',
             'PressureGauge', 'ChamferGauge'
         ];
@@ -34,7 +34,7 @@ class ImportCalVernierOtherSeeder extends Seeder
             ->where(function ($query) {
                 // PostgreSQL JSONB syntax
                 $query->whereRaw("calibration_data->>'calibration_type' LIKE '%Vernier%'")
-                      ->orWhereRaw("calibration_data->>'calibration_type' LIKE '%Micrometer%'")
+                      ->orWhereRaw("calibration_data->>'calibration_type' LIKE '%MicroMeter%'")
                       ->orWhereRaw("calibration_data->>'calibration_type' LIKE '%Dial%'")
                       ->orWhereRaw("calibration_data->>'calibration_type' LIKE '%Thickness%'")
                       ->orWhereRaw("calibration_data->>'calibration_type' LIKE '%Pressure%'")
@@ -281,7 +281,7 @@ class ImportCalVernierOtherSeeder extends Seeder
     /**
      * 🔥 กำหนด calibration_type จาก CodeNo pattern
      * x-10-xxxx = Vernier Caliper
-     * x-11-xxxx = Micrometer
+     * x-11-xxxx = MicroMeter
      * x-12-xxxx = Dial Caliper
      * x-13-xxxx = Dial Indicator
      * x-14-xxxx = Dial Test Indicator
@@ -299,7 +299,7 @@ class ImportCalVernierOtherSeeder extends Seeder
         // Mapping: รหัสกลาง (ตัวเลขหลังขีดแรก) => calibration_type
         $typeMapping = [
             '10' => 'VernierSpecial',
-            '11' => 'Micrometer',
+            '11' => 'MicroMeter',
             '12' => 'DialCaliper',
             '13' => 'DialIndicator',
             '14' => 'DialTestIndicator',

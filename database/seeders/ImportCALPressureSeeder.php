@@ -64,6 +64,7 @@ class ImportCALPressureSeeder extends Seeder
 
             $batchData[] = [
                 'instrument_id' => $instrument->id,
+                'calibration_type' => 'PressureGauge', // 🔥 เพิ่ม Type ลง Column
                 'cal_date'      => $this->parseDate($row->CalDate ?? null),
                 'next_cal_date' => $this->parseDate($row->DueDate ?? null),
                 'cal_place'     => 'Internal',

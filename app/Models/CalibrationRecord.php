@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class CalibrationRecord extends Model
 {
@@ -28,6 +29,14 @@ class CalibrationRecord extends Model
     public function instrument(): BelongsTo
     {
         return $this->belongsTo(Instrument::class);
+    }
+
+    /**
+     * 🔗 เชื่อมกับ Purchasing Record (สำหรับ External Cal)
+     */
+    public function purchasingRecord(): BelongsTo
+    {
+        return $this->belongsTo(PurchasingRecord::class, 'purchasing_record_id');
     }
 
     /**

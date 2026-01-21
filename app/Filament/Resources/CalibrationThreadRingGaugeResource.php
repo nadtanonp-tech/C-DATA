@@ -82,51 +82,30 @@ class CalibrationThreadRingGaugeResource extends Resource
                                         return $instrument ? "{$instrument->code_no} - {$instrument->name}" : '';
                                     })
                                     ->afterStateUpdated(function ($state, Set $set, Get $get) {
-                                        if (!$state) return;
-                                
-                                        $instrument = Instrument::with('toolType', 'department')->find($state);
-                                        if (!$instrument) return;
-                                
-                                        $set('next_cal_date', now()->addMonths($instrument->cal_freq_months ?? 6));
-                                        $set('instrument_size', $instrument->toolType?->size ?? '-');
-                                        $set('instrument_name', $instrument->toolType?->name ?? '-');
-                                        $set('instrument_department', $instrument->department?->name ?? '-');
-                                        $set('instrument_serial', $instrument->serial_no ?? '-');
-                                        $set('instrument_drawing', $instrument->toolType?->drawing_no ?? '-');
-                                 
-                                        // 🔥 สำหรับ Thread Ring Gauge - ใช้ 'วัดเกลียว' เท่านั้น
-                                        if ($instrument->toolType && $instrument->toolType->dimension_specs) {
-                                            $dimensionSpecs = $instrument->toolType->dimension_specs;
-                                            $readings = [];
-                                    
-                                            foreach ($dimensionSpecs as $spec) {
-                                                $point = $spec['point'] ?? null;
-                                                if (!$point) continue;
-                                        
-                                                // ค้นหา spec ที่เป็น 'วัดเกลียว'
-                                                $allSpecs = $spec['specs'] ?? [];
-                                                foreach ($allSpecs as $specItem) {
-                                                    $label = $specItem['label'] ?? '';
-                                                    
-                                                    if ($label === 'วัดเกลียว') {
-                                                        $readings[] = [
-                                                            'point' => $point,
-                                                            'label' => 'วัดเกลียว',
-                                                            'standard_value' => $specItem['standard_value'] ?? '-',
-                                                            'trend' => $spec['trend'] ?? '-', // trend อยู่ที่ระดับ point
-                                                            'measurement' => null, // ค่าวัด (ข้อความ)
-                                                            'result' => null, // ผล Pass/Reject
-                                                        ];
-                                                    }
-                                                }
+                                        self::onInstrumentSelected($state, $set, $get);
+                                    })
+                                    ->default(request()->query('instrument_id'))
+                                    ->afterStateHydrated(function ($state, Set $set, Get $get) {
+                                        $id = $state ?? request()->query('instrument_id');
+                                        if ($id) {
+                                            if (!$state) {
+                                                $set('instrument_id', $id);
                                             }
-                                    
-                                            // 🔥 เพิ่ม calibration_type สำหรับแยกประเภท (ทั้ง column และ JSON)
-                                            $set('calibration_type', 'ThreadRingGauge');
-                                            $set('calibration_data.calibration_type', 'ThreadRingGauge');
-                                            $set('calibration_data.readings', $readings);
+                                            self::onInstrumentSelected($id, $set, $get);
                                         }
                                     }),
+                                Forms\Components\Hidden::make('calibration_type')
+                                    ->dehydrated(),
+                                Forms\Components\Hidden::make('calibration_data.calibration_type')
+                                    ->afterStateHydrated(function ($state, $set) {
+                                        if (!empty($state)) {
+                                            $set('calibration_type', $state);
+                                            return;
+                                        }
+                                        $set('calibration_type', 'ThreadRingGauge');
+                                        $set('calibration_data.calibration_type', 'ThreadRingGauge');
+                                    })
+                                    ->dehydrated(),
                                 DatePicker::make('cal_date')
                                     ->label('วันที่สอบเทียบ')
                                     ->default(now())
@@ -146,28 +125,63 @@ class CalibrationThreadRingGaugeResource extends Resource
                                     ->label('Name')
                                     ->disabled()
                                     ->columnSpan(3)
-                                    ->dehydrated(false),
+                                    ->dehydrated(false)
+                                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                                        if ($id && !$state) {
+                                            $instrument = \App\Models\Instrument::with('toolType')->find($id);
+                                            $component->state($instrument->toolType?->name ?? '-');
+                                        }
+                                    }),
 
                                 TextInput::make('instrument_size')
                                     ->label('Size')
                                     ->disabled()
                                     ->columnSpan(3)
-                                    ->dehydrated(false),
+                                    ->dehydrated(false)
+                                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                                        if ($id && !$state) {
+                                            $instrument = \App\Models\Instrument::with('toolType')->find($id);
+                                            $component->state($instrument->toolType?->size ?? '-');
+                                        }
+                                    }),
                             
                                 TextInput::make('instrument_department')
                                     ->label('แผนก')
                                     ->disabled()
-                                    ->dehydrated(false),
+                                    ->dehydrated(false)
+                                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                                        if ($id && !$state) {
+                                            $instrument = \App\Models\Instrument::with('department')->find($id);
+                                            $component->state($instrument->department?->name ?? '-');
+                                        }
+                                    }),
                                 
                                 TextInput::make('instrument_serial')
                                     ->label('Serial No.')
                                     ->disabled()
-                                    ->dehydrated(false),
+                                    ->dehydrated(false)
+                                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                                        if ($id && !$state) {
+                                            $instrument = \App\Models\Instrument::find($id);
+                                            $component->state($instrument->serial_no ?? '-');
+                                        }
+                                    }),
                                 
                                 TextInput::make('instrument_drawing')
                                     ->label('Drawing No.')
                                     ->disabled()
-                                    ->dehydrated(false),
+                                    ->dehydrated(false)
+                                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                                        if ($id && !$state) {
+                                            $instrument = \App\Models\Instrument::with('toolType')->find($id);
+                                            $component->state($instrument->toolType?->drawing_no ?? '-');
+                                        }
+                                    }),
                             ]),
                             Grid::make(3)->schema([
                                 TextInput::make('environment.temperature')
@@ -233,6 +247,13 @@ class CalibrationThreadRingGaugeResource extends Resource
                         Repeater::make('calibration_data.readings')
                             ->label('รายการจุดตรวจสอบ')
                             ->itemLabel(fn (array $state): ?string => 'Point ' . ($state['point'] ?? '?') . ' - วัดเกลียว')
+                            ->afterStateHydrated(function ($component, $state, Get $get, Set $set) {
+                                $id = $get('instrument_id') ?? request()->query('instrument_id');
+                                if ($id && empty($state)) {
+                                    // Manually trigger the logic to populate readings
+                                    self::onInstrumentSelected($id, $set, $get);
+                                }
+                            })
                             ->schema([
                                 Forms\Components\Hidden::make('point')->dehydrated(),
                                 Forms\Components\Hidden::make('label')->dehydrated(),
@@ -353,6 +374,55 @@ class CalibrationThreadRingGaugeResource extends Resource
                         ]),
                     ]),
         ]);
+    }
+
+    // 🔥 Logic เมื่อเลือก Instrument (แยกออกมาเพื่อเรียกใช้ตอน Hydrated ได้ด้วย)
+    protected static function onInstrumentSelected($state, Set $set, Get $get)
+    {
+        if (!$state) return;
+
+        $instrument = Instrument::with('toolType', 'department')->find($state);
+        if (!$instrument) return;
+
+        $set('next_cal_date', now()->addMonths($instrument->cal_freq_months ?? 6));
+        $set('instrument_size', $instrument->toolType?->size ?? '-');
+        $set('instrument_name', $instrument->toolType?->name ?? '-');
+        $set('instrument_department', $instrument->department?->name ?? '-');
+        $set('instrument_serial', $instrument->serial_no ?? '-');
+        $set('instrument_drawing', $instrument->toolType?->drawing_no ?? '-');
+    
+        // 🔥 สำหรับ Thread Ring Gauge - ใช้ 'วัดเกลียว' เท่านั้น
+        if ($instrument->toolType && $instrument->toolType->dimension_specs) {
+            $dimensionSpecs = $instrument->toolType->dimension_specs;
+            $readings = [];
+    
+            foreach ($dimensionSpecs as $spec) {
+                $point = $spec['point'] ?? null;
+                if (!$point) continue;
+        
+                // ค้นหา spec ที่เป็น 'วัดเกลียว'
+                $allSpecs = $spec['specs'] ?? [];
+                foreach ($allSpecs as $specItem) {
+                    $label = $specItem['label'] ?? '';
+                    
+                    if ($label === 'วัดเกลียว') {
+                        $readings[] = [
+                            'point' => $point,
+                            'label' => 'วัดเกลียว',
+                            'standard_value' => $specItem['standard_value'] ?? '-',
+                            'trend' => $spec['trend'] ?? '-', // trend อยู่ที่ระดับ point
+                            'measurement' => null, // ค่าวัด (ข้อความ)
+                            'result' => null, // ผล Pass/Reject
+                        ];
+                    }
+                }
+            }
+    
+            // 🔥 เพิ่ม calibration_type สำหรับแยกประเภท (ทั้ง column และ JSON)
+            $set('calibration_type', 'ThreadRingGauge');
+            $set('calibration_data.calibration_type', 'ThreadRingGauge');
+            $set('calibration_data.readings', $readings);
+        }
     }
 
     // 🔥 อัปเดต Next Cal Date ตาม Level

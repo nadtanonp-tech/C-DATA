@@ -147,6 +147,7 @@ class ImportCALSNAPSeeder extends Seeder
 
             // 🎯 โครงสร้าง calibration_data ที่ตรงกับ Form
             $calData = [
+                'calibration_type' => 'SnapGauge', // 🔥 เพิ่ม Type ลง JSON
                 'readings' => $readingsArray,
             ];
 
@@ -169,6 +170,7 @@ class ImportCALSNAPSeeder extends Seeder
             // 4. เตรียมข้อมูลบันทึก - ตรงกับ migration ปัจจุบัน
             $batchData[] = [
                 'instrument_id' => $instrumentId,
+                'calibration_type' => 'SnapGauge', // 🔥 เพิ่ม Type ลง Column
                 'cal_date'      => $this->parseDate($row->CalDate),
                 'next_cal_date' => $this->parseDate($row->DueDate),
                 'cal_place'     => 'Internal', // ค่าคงที่

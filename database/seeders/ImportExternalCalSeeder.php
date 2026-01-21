@@ -31,33 +31,39 @@ class ImportExternalCalSeeder extends Seeder
 
             // 3. ปั้น JSON สำหรับผลสอบเทียบภายนอก
             $calData = [
+                'calibration_type' => 'ExternalCal', // 🔥 ระบุ Type ใน JSON
                 'Type' => 'External Calibration',
-                'CertificateNo' => $row->CerNo,
-                'TraceReference' => $row->TracePlace,
-                'Readings' => [
-                    // กรองค่าที่เป็น Null ออกเพื่อให้ JSON สะอาด (Optional)
-                    array_filter(['Size' => $row->Size1, 'ErrorMax' => $row->ErrorMax1, 'Serial' => $row->SerialNo1]),
-                    array_filter(['Size' => $row->Size2, 'ErrorMax' => $row->ErrorMax2]),
-                    array_filter(['Size' => $row->Size3, 'ErrorMax' => $row->ErrorMax3]),
-                    array_filter(['Size' => $row->Size4, 'ErrorMax' => $row->ErrorMax4]),
-                    array_filter(['Size' => $row->Size5, 'ErrorMax' => $row->ErrorMax5]),
-                ],
-                'ErrorMaxNow' => $row->ErrorMaxNow,
-                'Indices' => [
-                    'IndexA' => $row->IndexA,
-                    'IndexB' => $row->IndexB,
-                    'IndexC' => $row->IndexC,
-                ]
+                'cer_no' => $row->CerNo,
+                'place_cal' => $row->PlaceCAL ?? null,
+                'trace_place' => $row->TracePlace ?? null,
+                'price' => $row->Price_1 ?? null,
+                
+                // ข้อมูล FreqCal และ LastCalDate/LastErrorMax
+                'freq_cal' => $row->FeqCal1 ?? null,
+                'last_cal_date' => $row->LastCalDate ?? null,
+                'last_error_max' => $row->LastErrorMax ?? null,
+                
+                'error_max_now' => $row->ErrorMaxNow,
+                'drift_rate' => $row->ErrorMax ?? null,
+                'index_combined' => $row->Index ?? null,
+                'new_index' => $row->NewIndex ?? null,
+                'amount_day' => $row->AmountDay ?? null,
+                'ranges' => array_filter([
+                    ['range_name' => 'Range 1', 'error_max' => $row->ErrorMax1, 'index' => $row->Index1 ?? null],
+                    ['range_name' => 'Range 2', 'error_max' => $row->ErrorMax2, 'index' => $row->Index2 ?? null],
+                    ['range_name' => 'Range 3', 'error_max' => $row->ErrorMax3, 'index' => $row->Index3 ?? null],
+                    ['range_name' => 'Range 4', 'error_max' => $row->ErrorMax4, 'index' => $row->Index4 ?? null],
+                    ['range_name' => 'Range 5', 'error_max' => $row->ErrorMax5, 'index' => $row->Index5 ?? null],
+                ], fn($r) => !empty($r['error_max'])),
             ];
 
             // 4. เตรียมข้อมูลลง Array (ยังไม่ Insert ทันที)
             $batchData[] = [
                 'instrument_id' => $instrument->id,
-                
+                'calibration_type' => 'ExternalCal', // 🔥 ระบุ Type ใน Column
                 'cal_date'      => $this->parseDate($row->CalDate),
                 'next_cal_date' => $this->parseDate($row->DueDate),
                 'cal_place'     => 'External', 
-                
                 'calibration_data' => json_encode($calData, JSON_UNESCAPED_UNICODE),
                 'result_status' => $row->Result, 
                 'remark'        => $row->Remark,

@@ -10,6 +10,9 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\On;
 
+// 🔧 Cache TTL constant - 30 minutes
+if (!defined('DASHBOARD_CACHE_TTL')) define('DASHBOARD_CACHE_TTL', 1800);
+
 class CalibrationStatsWidget extends BaseWidget
 {
     protected static ?int $sort = 0;
@@ -159,9 +162,9 @@ class CalibrationStatsWidget extends BaseWidget
         $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
         $level = $this->selectedLevel ?? '';
         
-        // 🚀 ใช้ cache เพื่อไม่ต้อง query นับจำนวนทุกครั้ง (cache 5 นาที)
+        // 🚀 ใช้ cache เพื่อไม่ต้อง query นับจำนวนทุกครั้ง (cache 30 นาที)
         $cacheKey = "stats_counts_{$month}_{$year}_{$level}";
-        $counts = Cache::remember($cacheKey, 300, function () use ($startDate, $endDate) {
+        $counts = Cache::remember($cacheKey, DASHBOARD_CACHE_TTL, function () use ($startDate, $endDate) {
             return [
                 'due' => $this->countDueRecords($startDate, $endDate),
                 'overdue' => $this->countOverdue(),

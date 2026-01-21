@@ -83,59 +83,32 @@ class CalibrationKNewResource extends Resource
                                         return $instrument ? "{$instrument->code_no} - {$instrument->name}" : '';
                                     })
                                     ->afterStateUpdated(function ($state, Set $set, Get $get) {
-                                        if (!$state) return;
-                                
-                                        $instrument = Instrument::with('toolType', 'department')->find($state);
-                                        if (!$instrument) return;
-                                
-                                        $set('next_cal_date', now()->addMonths($instrument->cal_freq_months ?? 6));
-                                        $set('instrument_size', $instrument->toolType?->size ?? '-');
-                                        $set('instrument_name', $instrument->toolType?->name ?? '-');
-                                        $set('instrument_department', $instrument->department?->name ?? '-');
-                                        $set('instrument_serial', $instrument->serial_no ?? '-');
-                                        $set('instrument_drawing', $instrument->toolType?->drawing_no ?? '-');
-                                 
-                                        if ($instrument->toolType && $instrument->toolType->dimension_specs) {
-                                            $dimensionSpecs = $instrument->toolType->dimension_specs;
-                                            $readings = [];
-                                    
-                                            foreach ($dimensionSpecs as $spec) {
-                                                $point = $spec['point'] ?? null;
-                                                if (!$point) continue;
-                                                
-                                                $trend = $spec['trend'] ?? 'Smaller';
-                                        
-                                                // 🔥 Loop ทุก specs ใน Point (STD, Major, Pitch, วัดเกลียว ฯลฯ)
-                                                if (isset($spec['specs']) && is_array($spec['specs'])) {
-                                                    foreach ($spec['specs'] as $specItem) {
-                                                        $readingItem = [
-                                                            'point' => $point,
-                                                            'trend' => $trend,
-                                                            'std_label' => $specItem['label'] ?? 'STD',
-                                                        ];
-                                                        
-                                                        if (($specItem['label'] ?? '') === 'วัดเกลียว') {
-                                                            // 🔥 สำหรับวัดเกลียว - ใช้ standard_value
-                                                            $readingItem['standard_value'] = $specItem['standard_value'] ?? null;
-                                                            $readingItem['min_spec'] = null;
-                                                            $readingItem['max_spec'] = null;
-                                                            $readingItem['Judgement'] = 'Pass';
-                                                        } else {
-                                                            // 🔥 สำหรับ STD, Major, Pitch ฯลฯ - ใช้ min/max
-                                                            $valMin = $specItem['min'] ?? null;
-                                                            $valMax = $specItem['max'] ?? null;
-                                                            $readingItem['min_spec'] = $valMin !== null ? rtrim(rtrim(number_format((float)$valMin, 8, '.', ''), '0'), '.') : null;
-                                                            $readingItem['max_spec'] = $valMax !== null ? rtrim(rtrim(number_format((float)$valMax, 8, '.', ''), '0'), '.') : null;
-                                                        }
-                                                        
-                                                        $readings[] = $readingItem;
-                                                    }
-                                                }
+                                        self::onInstrumentSelected($state, $set, $get);
+                                    })
+                                    ->default(request()->query('instrument_id'))
+                                    ->afterStateHydrated(function ($state, Set $set, Get $get) {
+                                        $id = $state ?? request()->query('instrument_id');
+                                        if ($id) {
+                                            if (!$state) {
+                                                $set('instrument_id', $id);
                                             }
-                                    
-                                            $set('calibration_data.readings', $readings);
+                                            self::onInstrumentSelected($id, $set, $get);
                                         }
                                     }),
+                                Forms\Components\Hidden::make('calibration_type')
+                                    ->dehydrated(),
+                                Forms\Components\Hidden::make('calibration_data.calibration_type')
+                                    ->afterStateHydrated(function ($state, $set) {
+                                        // 🔥 เช็คว่ามีค่าอยู่แล้วหรือไม่ (กรณี Edit)
+                                        if (!empty($state)) {
+                                            $set('calibration_type', $state);
+                                            return;
+                                        }
+                                        // 🔥 กรณี Create หรือค่ายังไม่มี -> Set Default เป็น 'KGauge'
+                                        $set('calibration_type', 'KGauge');
+                                        $set('calibration_data.calibration_type', 'KGauge');
+                                    })
+                                    ->dehydrated(),
                                 DatePicker::make('cal_date')
                                     ->label('วันที่สอบเทียบ')
                                     ->default(now())
@@ -151,28 +124,63 @@ class CalibrationKNewResource extends Resource
                                     ->label('Name')
                                     ->disabled()
                                     ->columnSpan(3)
-                                    ->dehydrated(false),
+                                    ->dehydrated(false)
+                                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                                        if ($id && !$state) {
+                                            $instrument = \App\Models\Instrument::with('toolType')->find($id);
+                                            $component->state($instrument->toolType?->name ?? '-');
+                                        }
+                                    }),
 
                                 TextInput::make('instrument_size')
                                     ->label('Size')
                                     ->disabled()
                                     ->columnSpan(3)
-                                    ->dehydrated(false),
+                                    ->dehydrated(false)
+                                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                                        if ($id && !$state) {
+                                            $instrument = \App\Models\Instrument::with('toolType')->find($id);
+                                            $component->state($instrument->toolType?->size ?? '-');
+                                        }
+                                    }),
                             
                                 TextInput::make('instrument_department')
                                     ->label('แผนก')
                                     ->disabled()
-                                    ->dehydrated(false),
+                                    ->dehydrated(false)
+                                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                                        if ($id && !$state) {
+                                            $instrument = \App\Models\Instrument::with('department')->find($id);
+                                            $component->state($instrument->department?->name ?? '-');
+                                        }
+                                    }),
                                 
                                 TextInput::make('instrument_serial')
                                     ->label('Serial No.')
                                     ->disabled()
-                                    ->dehydrated(false),
+                                    ->dehydrated(false)
+                                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                                        if ($id && !$state) {
+                                            $instrument = \App\Models\Instrument::find($id);
+                                            $component->state($instrument->serial_no ?? '-');
+                                        }
+                                    }),
                                 
                                 TextInput::make('instrument_drawing')
                                     ->label('Drawing No.')
                                     ->disabled()
-                                    ->dehydrated(false),
+                                    ->dehydrated(false)
+                                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                                        if ($id && !$state) {
+                                            $instrument = \App\Models\Instrument::with('toolType')->find($id);
+                                            $component->state($instrument->toolType?->drawing_no ?? '-');
+                                        }
+                                    }),
                             ]),
                             Grid::make(2)->schema([
                                 TextInput::make('environment.temperature')
@@ -236,6 +244,13 @@ class CalibrationKNewResource extends Resource
                         Repeater::make('calibration_data.readings')
                             ->label('รายการจุดตรวจสอบ')
                             ->itemLabel(fn (array $state): ?string => 'Point ' . ($state['point'] ?? '?') . ' - ' . ($state['std_label'] ?? 'STD'))
+                            ->afterStateHydrated(function ($component, $state, Get $get, Set $set) {
+                                $id = $get('instrument_id') ?? request()->query('instrument_id');
+                                if ($id && empty($state)) {
+                                    // Manually trigger the logic to populate readings
+                                    self::onInstrumentSelected($id, $set, $get);
+                                }
+                            })
                             ->schema([
                                 Grid::make(9)->schema([
                                     Select::make('trend')
@@ -461,6 +476,63 @@ class CalibrationKNewResource extends Resource
                         ]),
                     ]),
         ]);
+    }
+
+    // 🔥 Logic เมื่อเลือก Instrument (แยกออกมาเพื่อเรียกใช้ตอน Hydrated ได้ด้วย)
+    protected static function onInstrumentSelected($state, Set $set, Get $get)
+    {
+        if (!$state) return;
+
+        $instrument = Instrument::with('toolType', 'department')->find($state);
+        if (!$instrument) return;
+
+        $set('next_cal_date', now()->addMonths($instrument->cal_freq_months ?? 6));
+        $set('instrument_size', $instrument->toolType?->size ?? '-');
+        $set('instrument_name', $instrument->toolType?->name ?? '-');
+        $set('instrument_department', $instrument->department?->name ?? '-');
+        $set('instrument_serial', $instrument->serial_no ?? '-');
+        $set('instrument_drawing', $instrument->toolType?->drawing_no ?? '-');
+ 
+        if ($instrument->toolType && $instrument->toolType->dimension_specs) {
+            $dimensionSpecs = $instrument->toolType->dimension_specs;
+            $readings = [];
+    
+            foreach ($dimensionSpecs as $spec) {
+                $point = $spec['point'] ?? null;
+                if (!$point) continue;
+                
+                $trend = $spec['trend'] ?? 'Smaller';
+        
+                // 🔥 Loop ทุก specs ใน Point (STD, Major, Pitch, วัดเกลียว ฯลฯ)
+                if (isset($spec['specs']) && is_array($spec['specs'])) {
+                    foreach ($spec['specs'] as $specItem) {
+                        $readingItem = [
+                            'point' => $point,
+                            'trend' => $trend,
+                            'std_label' => $specItem['label'] ?? 'STD',
+                        ];
+                        
+                        if (($specItem['label'] ?? '') === 'วัดเกลียว') {
+                            // 🔥 สำหรับวัดเกลียว - ใช้ standard_value
+                            $readingItem['standard_value'] = $specItem['standard_value'] ?? null;
+                            $readingItem['min_spec'] = null;
+                            $readingItem['max_spec'] = null;
+                            $readingItem['Judgement'] = 'Pass';
+                        } else {
+                            // 🔥 สำหรับ STD, Major, Pitch ฯลฯ - ใช้ min/max
+                            $valMin = $specItem['min'] ?? null;
+                            $valMax = $specItem['max'] ?? null;
+                            $readingItem['min_spec'] = $valMin !== null ? rtrim(rtrim(number_format((float)$valMin, 8, '.', ''), '0'), '.') : null;
+                            $readingItem['max_spec'] = $valMax !== null ? rtrim(rtrim(number_format((float)$valMax, 8, '.', ''), '0'), '.') : null;
+                        }
+                        
+                        $readings[] = $readingItem;
+                    }
+                }
+            }
+    
+            $set('calibration_data.readings', $readings);
+        }
     }
 
     // 🔥 ฟังก์ชันคำนวณทั้งหมดอัตโนมัติ (Auto Calculate All Points)

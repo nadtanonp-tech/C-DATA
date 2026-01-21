@@ -143,12 +143,14 @@ class ImportCalPlugSeeder extends Seeder
             
             // 🔥 สร้าง calibration_data ใน format ใหม่
             $calData = [
+                'calibration_type' => 'PlugGauge', // 🔥 เพิ่ม Type ลง JSON
                 'readings' => $readings,
             ];
 
             // 4. เตรียมข้อมูลบันทึก
             $batchData[] = [
                 'instrument_id' => $instrument->id,
+                'calibration_type' => 'PlugGauge', // 🔥 เพิ่ม Type ลง Column
                 'cal_date'      => $this->parseDate($row->CalDate),
                 'next_cal_date' => $this->parseDate($row->DueDate),
                 'cal_place'     => 'Internal',

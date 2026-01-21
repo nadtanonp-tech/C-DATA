@@ -31,6 +31,7 @@
                     type="button"
                     wire:click="resetFilters"
                     class="group inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg shadow-sm transition-all duration-200 ease-in-out hover:bg-gray-200 hover:text-gray-800 hover:shadow-md hover:scale-[1.02] active:scale-[0.98] dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
+                    title="รีเซ็ตตัวกรองและรีเฟรชข้อมูลใหม่"
                 >
                     <x-heroicon-o-arrow-path class="w-4 h-4 transition-all duration-200 ease-in-out group-hover:scale-110 group-hover:-rotate-180" wire:loading.class="animate-spin" wire:target="resetFilters" />
                     <span class="transition-all duration-200 ease-in-out group-hover:tracking-wider group-hover:font-semibold">รีเซ็ต</span>

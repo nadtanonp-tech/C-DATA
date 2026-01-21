@@ -85,67 +85,30 @@ class CalibrationThreadPlugGaugeResource extends Resource
                                         return $instrument ? "{$instrument->code_no} - {$instrument->name}" : '';
                                     })
                                     ->afterStateUpdated(function ($state, Set $set, Get $get) {
-                                        if (!$state) return;
-                                
-                                        $instrument = Instrument::with('toolType', 'department')->find($state);
-                                        if (!$instrument) return;
-                                
-                                        $set('next_cal_date', now()->addMonths($instrument->cal_freq_months ?? 6));
-                                        $set('instrument_size', $instrument->toolType?->size ?? '-');
-                                        $set('instrument_name', $instrument->toolType?->name ?? '-');
-                                        $set('instrument_department', $instrument->department?->name ?? '-');
-                                        $set('instrument_serial', $instrument->serial_no ?? '-');
-                                        $set('instrument_drawing', $instrument->toolType?->drawing_no ?? '-');
-                                 
-                                        if ($instrument->toolType && $instrument->toolType->dimension_specs) {
-                                            $dimensionSpecs = $instrument->toolType->dimension_specs;
-                                            $readings = [];
-                                    
-                                            // 🔥 แบบใหม่: รวม Major, Pitch, Plug ไว้ใน Point เดียวกัน
-                                            foreach ($dimensionSpecs as $pointIndex => $spec) {
-                                                $point = $spec['point'] ?? null;
-                                                if (!$point) continue;
-                                        
-                                                $readingItem = [
-                                                    'point' => $point,
-                                                    'trend' => $spec['trend'] ?? 'Smaller',
-                                                    'specs' => [], // 🔥 เก็บ specs ทั้งหมดไว้ในนี้
-                                                ];
-                                                
-                                                // รวบรวม specs ทั้งหมด (Major, Pitch, Plug)
-                                                $allSpecs = $spec['specs'] ?? [];
-                                                foreach ($allSpecs as $specItem) {
-                                                    $label = $specItem['label'] ?? '';
-                                                    
-                                                    // ข้าม STD เพราะ Thread Plug Gauge ใช้ Major, Pitch, Plug
-                                                    if ($label === 'STD') continue;
-                                                    
-                                                    $valMin = $specItem['min'] ?? null;
-                                                    $valMax = $specItem['max'] ?? null;
-                                                    
-                                                    $readingItem['specs'][] = [
-                                                        'label' => $label,
-                                                        'min_spec' => $valMin !== null ? rtrim(rtrim(number_format((float)$valMin, 8, '.', ''), '0'), '.') : null,
-                                                        'max_spec' => $valMax !== null ? rtrim(rtrim(number_format((float)$valMax, 8, '.', ''), '0'), '.') : null,
-                                                        'measurements' => [['value' => null], ['value' => null], ['value' => null], ['value' => null]], // 🔥 4 ช่องกรอกค่า
-                                                        'reading' => null,
-                                                        'error' => null,
-                                                        'Judgement' => null,
-                                                        'grade' => null,
-                                                    ];
-                                                }
-                                                
-                                                if (!empty($readingItem['specs'])) {
-                                                    $readings[] = $readingItem;
-                                                }
+                                        self::onInstrumentSelected($state, $set, $get);
+                                    })
+                                    ->default(request()->query('instrument_id'))
+                                    ->afterStateHydrated(function ($state, Set $set, Get $get) {
+                                        $id = $state ?? request()->query('instrument_id');
+                                        if ($id) {
+                                            if (!$state) {
+                                                $set('instrument_id', $id);
                                             }
-                                    
-                                            // 🔥 เพิ่ม calibration_type สำหรับแยกประเภท (ทั้ง column และ JSON)
-                                            $set('calibration_type', 'ThreadPlugGauge');
-                                            $set('calibration_data.calibration_type', 'ThreadPlugGauge');
-                                            $set('calibration_data.readings', $readings);
+                                            self::onInstrumentSelected($id, $set, $get);
                                         }
                                     }),
+                                Forms\Components\Hidden::make('calibration_type')
+                                    ->dehydrated(),
+                                Forms\Components\Hidden::make('calibration_data.calibration_type')
+                                    ->afterStateHydrated(function ($state, $set) {
+                                        if (!empty($state)) {
+                                            $set('calibration_type', $state);
+                                            return;
+                                        }
+                                        $set('calibration_type', 'ThreadPlugGauge');
+                                        $set('calibration_data.calibration_type', 'ThreadPlugGauge');
+                                    })
+                                    ->dehydrated(),
                                 DatePicker::make('cal_date')
                                     ->label('วันที่สอบเทียบ')
                                     ->default(now())
@@ -160,28 +123,63 @@ class CalibrationThreadPlugGaugeResource extends Resource
                                     ->label('Name')
                                     ->disabled()
                                     ->columnSpan(3)
-                                    ->dehydrated(false),
+                                    ->dehydrated(false)
+                                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                                        if ($id && !$state) {
+                                            $instrument = \App\Models\Instrument::with('toolType')->find($id);
+                                            $component->state($instrument->toolType?->name ?? '-');
+                                        }
+                                    }),
 
                                 TextInput::make('instrument_size')
                                     ->label('Size')
                                     ->disabled()
                                     ->columnSpan(3)
-                                    ->dehydrated(false),
+                                    ->dehydrated(false)
+                                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                                        if ($id && !$state) {
+                                            $instrument = \App\Models\Instrument::with('toolType')->find($id);
+                                            $component->state($instrument->toolType?->size ?? '-');
+                                        }
+                                    }),
                             
                                 TextInput::make('instrument_department')
                                     ->label('แผนก')
                                     ->disabled()
-                                    ->dehydrated(false),
+                                    ->dehydrated(false)
+                                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                                        if ($id && !$state) {
+                                            $instrument = \App\Models\Instrument::with('department')->find($id);
+                                            $component->state($instrument->department?->name ?? '-');
+                                        }
+                                    }),
                                 
                                 TextInput::make('instrument_serial')
                                     ->label('Serial No.')
                                     ->disabled()
-                                    ->dehydrated(false),
+                                    ->dehydrated(false)
+                                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                                        if ($id && !$state) {
+                                            $instrument = \App\Models\Instrument::find($id);
+                                            $component->state($instrument->serial_no ?? '-');
+                                        }
+                                    }),
                                 
                                 TextInput::make('instrument_drawing')
                                     ->label('Drawing No.')
                                     ->disabled()
-                                    ->dehydrated(false),
+                                    ->dehydrated(false)
+                                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                                        if ($id && !$state) {
+                                            $instrument = \App\Models\Instrument::with('toolType')->find($id);
+                                            $component->state($instrument->toolType?->drawing_no ?? '-');
+                                        }
+                                    }),
                             ]),
                             Grid::make(2)->schema([
                                 TextInput::make('environment.temperature')
@@ -245,6 +243,13 @@ class CalibrationThreadPlugGaugeResource extends Resource
                         Repeater::make('calibration_data.readings')
                             ->label('รายการจุดตรวจสอบ')
                             ->itemLabel(fn (array $state): ?string => 'Point ' . ($state['point'] ?? '?') . ' - Major - Pitch - Plug')
+                            ->afterStateHydrated(function ($component, $state, Get $get, Set $set) {
+                                $id = $get('instrument_id') ?? request()->query('instrument_id');
+                                if ($id && empty($state)) {
+                                    // Manually trigger the logic to populate readings
+                                    self::onInstrumentSelected($id, $set, $get);
+                                }
+                            })
                             ->schema([
                                 // 🔥 Hidden fields for Point level
                                 Forms\Components\Hidden::make('point')->dehydrated(),
@@ -440,6 +445,71 @@ class CalibrationThreadPlugGaugeResource extends Resource
                         ]),
                     ]),
         ]);
+    }
+
+    // 🔥 Logic เมื่อเลือก Instrument (แยกออกมาเพื่อเรียกใช้ตอน Hydrated ได้ด้วย)
+    protected static function onInstrumentSelected($state, Set $set, Get $get)
+    {
+        if (!$state) return;
+
+        $instrument = Instrument::with('toolType', 'department')->find($state);
+        if (!$instrument) return;
+
+        $set('next_cal_date', now()->addMonths($instrument->cal_freq_months ?? 6));
+        $set('instrument_size', $instrument->toolType?->size ?? '-');
+        $set('instrument_name', $instrument->toolType?->name ?? '-');
+        $set('instrument_department', $instrument->department?->name ?? '-');
+        $set('instrument_serial', $instrument->serial_no ?? '-');
+        $set('instrument_drawing', $instrument->toolType?->drawing_no ?? '-');
+ 
+        if ($instrument->toolType && $instrument->toolType->dimension_specs) {
+            $dimensionSpecs = $instrument->toolType->dimension_specs;
+            $readings = [];
+    
+            // 🔥 แบบใหม่: รวม Major, Pitch, Plug ไว้ใน Point เดียวกัน
+            foreach ($dimensionSpecs as $pointIndex => $spec) {
+                $point = $spec['point'] ?? null;
+                if (!$point) continue;
+        
+                $readingItem = [
+                    'point' => $point,
+                    'trend' => $spec['trend'] ?? 'Smaller',
+                    'specs' => [], // 🔥 เก็บ specs ทั้งหมดไว้ในนี้
+                ];
+                
+                // รวบรวม specs ทั้งหมด (Major, Pitch, Plug)
+                $allSpecs = $spec['specs'] ?? [];
+                foreach ($allSpecs as $specItem) {
+                    $label = $specItem['label'] ?? '';
+                    
+                    // ข้าม STD เพราะ Thread Plug Gauge ใช้ Major, Pitch, Plug
+                    if ($label === 'STD') continue;
+                    
+                    $valMin = $specItem['min'] ?? null;
+                    $valMax = $specItem['max'] ?? null;
+                    
+                    $readingItem['specs'][] = [
+                        'label' => $label,
+                        'min_spec' => $valMin !== null ? rtrim(rtrim(number_format((float)$valMin, 8, '.', ''), '0'), '.') : null,
+                        'max_spec' => $valMax !== null ? rtrim(rtrim(number_format((float)$valMax, 8, '.', ''), '0'), '.') : null,
+                        'measurements' => [['value' => null], ['value' => null], ['value' => null], ['value' => null]], // 🔥 4 ช่องกรอกค่า
+                        'reading' => null,
+                        'error' => null,
+                        'Judgement' => null,
+                        'grade' => null,
+                    ];
+                }
+                
+                if (!empty($readingItem['specs'])) {
+                    $readings[] = $readingItem;
+                }
+            }
+    
+            // 🔥 เพิ่ม calibration_type สำหรับแยกประเภท (ทั้ง column และ JSON)
+            $set('calibration_type', 'ThreadPlugGauge');
+            $set('calibration_data.calibration_type', 'ThreadPlugGauge');
+            $set('calibration_data.readings', $readings);
+        }
     }
 
     // 🔥 คำนวณผลลัพธ์ของแต่ละ Spec (Major, Pitch, Plug)

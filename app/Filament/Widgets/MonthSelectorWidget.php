@@ -35,10 +35,52 @@ class MonthSelectorWidget extends Widget implements HasForms
 
     public function resetFilters(): void
     {
+        // Reset filters to default values
         $this->selectedMonth = (int) Carbon::now()->format('m');
         $this->selectedYear = (int) Carbon::now()->format('Y');
         $this->selectedLevel = 'all';
+        
+        // 🔄 Clear all dashboard-related cache
+        $this->clearDashboardCache();
+        
+        // Dispatch filter-changed event to refresh all widgets
         $this->dispatchFilters();
+        
+        // Show success notification
+        \Filament\Notifications\Notification::make()
+            ->title('รีเซ็ตสำเร็จ')
+            ->body('รีเซ็ตตัวกรองและรีเฟรชข้อมูลใหม่เรียบร้อยแล้ว')
+            ->success()
+            ->duration(3000)
+            ->send();
+    }
+
+    /**
+     * 🔄 Clear all dashboard cache
+     */
+    private function clearDashboardCache(): void
+    {
+        $month = $this->selectedMonth ?? (int) Carbon::now()->format('m');
+        $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
+        $level = $this->selectedLevel === 'all' ? '' : ($this->selectedLevel ?? '');
+        
+        // Clear specific cache keys
+        $cacheKeys = [
+            "stats_counts_{$month}_{$year}_{$level}",
+            "due_count_{$month}_{$year}_{$level}",
+            "calibrated_count_{$month}_{$year}_{$level}",
+            "overdue_count_{$month}_{$year}_{$level}",
+            "year_options",
+            // Also clear for empty level
+            "stats_counts_{$month}_{$year}_",
+            "due_count_{$month}_{$year}_",
+            "calibrated_count_{$month}_{$year}_",
+            "overdue_count_{$month}_{$year}_",
+        ];
+        
+        foreach ($cacheKeys as $key) {
+            \Illuminate\Support\Facades\Cache::forget($key);
+        }
     }
 
     public function dispatchFilters(): void

@@ -87,7 +87,7 @@ class CalibrationRecordResource extends Resource
             // 🔥 Section ใหม่: แสดงเฉพาะ types อื่นๆ (ไม่ใช่ Vernier Caliper/Digital)
             Section::make('2. ตรวจสอบความเรียบของผิวสัมผัส')
                 ->description('กรอกผลการตรวจสอบ')
-                ->visible(fn (Get $get) => !in_array($get('calibration_data.calibration_type'), ['VernierCaliper', 'VernierCaliperDigital', 'PressureGauge']))
+                ->visible(fn (Get $get) => !in_array($get('calibration_data.calibration_type'), ['VernierCaliper', 'VernierDigital', 'PressureGauge']))
                 ->schema([
                     TextInput::make('calibration_data.flatness_check')
                         ->label('ผลการตรวจสอบ')
@@ -99,17 +99,17 @@ class CalibrationRecordResource extends Resource
             // 🔥 Sections สำหรับ Vernier Caliper / Vernier Digital เท่านั้น
             Section::make('2. ตรวจสอบความถูกต้องของสเกลวัดใน')
                 ->description('กรอกค่าตามจุดตรวจสอบ - สเกลวัดใน')
-                ->visible(fn (Get $get) => in_array($get('calibration_data.calibration_type'), ['VernierCaliper', 'VernierCaliperDigital']))
+                ->visible(fn (Get $get) => in_array($get('calibration_data.calibration_type'), ['VernierCaliper', 'VernierDigital']))
                 ->schema([self::getReadingsRepeater('calibration_data.readings_inner', 2, 'calculateInnerSpecResult')]),
 
             Section::make('3. ตรวจสอบความถูกต้องของสเกลวัดลึก')
                 ->description('กรอกค่าตามจุดตรวจสอบ - สเกลวัดลึก')
-                ->visible(fn (Get $get) => in_array($get('calibration_data.calibration_type'), ['VernierCaliper', 'VernierCaliperDigital']))
+                ->visible(fn (Get $get) => in_array($get('calibration_data.calibration_type'), ['VernierCaliper', 'VernierDigital']))
                 ->schema([self::getReadingsRepeater('calibration_data.readings_depth', 2, 'calculateDepthSpecResult')]),
 
             Section::make('4. ตรวจสอบความเรียบและความขนาน')
                 ->description('ตรวจสอบความเรียบของพื้นผิวและความขนานของขากรรไกร')
-                ->visible(fn (Get $get) => in_array($get('calibration_data.calibration_type'), ['VernierCaliper', 'VernierCaliperDigital']))
+                ->visible(fn (Get $get) => in_array($get('calibration_data.calibration_type'), ['VernierCaliper', 'VernierDigital']))
                 ->schema(self::getParallelismSchema()),
 
             // 🔥 Section สำหรับ Pressure Gauge เท่านั้น
@@ -136,7 +136,17 @@ class CalibrationRecordResource extends Resource
                     ->reactive()
                     ->getSearchResultsUsing(fn (string $search) => self::searchInstruments($search))
                     ->getOptionLabelUsing(fn ($value) => self::getInstrumentLabel($value))
-                    ->afterStateUpdated(fn ($state, Set $set, Get $get) => self::onInstrumentSelected($state, $set, $get)),
+                    ->afterStateUpdated(fn ($state, Set $set, Get $get) => self::onInstrumentSelected($state, $set, $get))
+                    ->default(request()->query('instrument_id'))
+                    ->afterStateHydrated(function ($state, Set $set, Get $get) {
+                        $id = $state ?? request()->query('instrument_id');
+                        if ($id) {
+                            if (!$state) {
+                                $set('instrument_id', $id);
+                            }
+                            self::onInstrumentSelected($id, $set, $get);
+                        }
+                    }),
 
                 DatePicker::make('cal_date')
                     ->label('วันที่สอบเทียบ')
@@ -151,28 +161,91 @@ class CalibrationRecordResource extends Resource
             ]),
 
             Grid::make(4)->schema([
-                TextInput::make('instrument_name')->label('Name')->disabled()->columnSpan(3)->dehydrated(false),
-                TextInput::make('instrument_brand')->label('ยี่ห้อ')->disabled()->columnSpan(1)->dehydrated(false),
-                TextInput::make('instrument_size')->label('Size')->disabled()->columnSpan(3)->dehydrated(false),
-                TextInput::make('instrument_department')->label('แผนก')->disabled()->columnSpan(1)->dehydrated(false),
-                TextInput::make('instrument_serial')->label('Serial No.')->disabled()->columnSpan(2)->dehydrated(false),
-                TextInput::make('instrument_drawing')->label('Drawing No.')->disabled()->columnSpan(2)->dehydrated(false),
+                TextInput::make('instrument_name')->label('Name')->disabled()->columnSpan(3)->dehydrated(false)
+                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                        if ($id && !$state) {
+                            $instrument = \App\Models\Instrument::with('toolType')->find($id);
+                            $component->state($instrument->toolType?->name ?? '-');
+                        }
+                    }),
+                TextInput::make('instrument_brand')->label('ยี่ห้อ')->disabled()->columnSpan(1)->dehydrated(false)
+                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                        if ($id && !$state) {
+                            $instrument = \App\Models\Instrument::find($id);
+                            $component->state($instrument->brand ?? '-');
+                        }
+                    }),
+                TextInput::make('instrument_size')->label('Size')->disabled()->columnSpan(3)->dehydrated(false)
+                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                        if ($id && !$state) {
+                            $instrument = \App\Models\Instrument::with('toolType')->find($id);
+                            $component->state($instrument->toolType?->size ?? '-');
+                        }
+                    }),
+                TextInput::make('instrument_department')->label('แผนก')->disabled()->columnSpan(1)->dehydrated(false)
+                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                        if ($id && !$state) {
+                            $instrument = \App\Models\Instrument::with('department')->find($id);
+                            $component->state($instrument->department?->name ?? '-');
+                        }
+                    }),
+                TextInput::make('instrument_serial')->label('Serial No.')->disabled()->columnSpan(2)->dehydrated(false)
+                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                        if ($id && !$state) {
+                            $instrument = \App\Models\Instrument::find($id);
+                            $component->state($instrument->serial_no ?? '-');
+                        }
+                    }),
+                TextInput::make('instrument_drawing')->label('Drawing No.')->disabled()->columnSpan(2)->dehydrated(false)
+                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                        if ($id && !$state) {
+                            $instrument = \App\Models\Instrument::with('toolType')->find($id);
+                            $component->state($instrument->toolType?->drawing_no ?? '-');
+                        }
+                    }),
             ]),
 
             Grid::make(3)->schema([
                 TextInput::make('criteria_1')->label('เกณฑ์ค่าบวก (Criteria +)')->disabled()->columnSpan(1)->dehydrated(false)
                     ->suffix(fn (Get $get) => $get('criteria_unit') ?? 'mm.')
-                    ->extraAttributes(['style' => 'text-align: center;']),
+                    ->extraAttributes(['style' => 'text-align: center;'])
+                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                        if ($id && !$state) {
+                             $instrument = \App\Models\Instrument::with('toolType')->find($id);
+                             $component->state($instrument->toolType?->criteria_1 ?? '-');
+                        }
+                    }),
                 TextInput::make('criteria_2')->label('เกณฑ์ค่าลบ (Criteria -)')->disabled()->columnSpan(1)->dehydrated(false)
                     ->suffix(fn (Get $get) => $get('criteria_unit') ?? 'mm.')
-                    ->extraAttributes(['style' => 'text-align: center;']),
+                    ->extraAttributes(['style' => 'text-align: center;'])
+                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                        if ($id && !$state) {
+                             $instrument = \App\Models\Instrument::with('toolType')->find($id);
+                             $component->state($instrument->toolType?->criteria_2 ?? '-');
+                        }
+                    }),
                 Forms\Components\Hidden::make('criteria_unit')->dehydrated(false),
                 TextInput::make('instrument_machine')
                     ->label('เครื่องจักร')
                     ->disabled()
                     ->columnSpan(1)
                     ->visible(fn (Get $get) => $get('calibration_data.calibration_type') === 'PressureGauge')
-                    ->dehydrated(false),
+                    ->dehydrated(false)
+                    ->afterStateHydrated(function ($component, $state, Get $get) {
+                        $id = $get('instrument_id') ?? request()->query('instrument_id');
+                        if ($id && !$state) {
+                            $instrument = \App\Models\Instrument::find($id);
+                            $component->state($instrument->machine_name ?? '-');
+                        }
+                    }),
             ]),
 
             Grid::make(3)->schema([
@@ -189,13 +262,20 @@ class CalibrationRecordResource extends Resource
                     ->native(false)
                     ->visible(fn (Get $get) => !in_array($get('calibration_data.calibration_type'), ['VernierCaliper', 'VernierCaliperDigital', 'PressureGauge']))
                     ->dehydrated(),
-                // 🔥 Hidden field เก็บ calibration_type
+                
+                // 🔥 Hidden field สำหรับ column calibration_type (ต้องมีเพื่อให้บันทึกลง database)
+                Forms\Components\Hidden::make('calibration_type')
+                    ->dehydrated(),
+                    
+                // 🔥 Hidden field เก็บ calibration_type ใน JSON
                 // ใช้ afterStateHydrated เพื่อ set ค่าเฉพาะตอน Create (ค่าว่าง)
                 // ถ้า Edit/View จะใช้ค่าจาก database
                 Forms\Components\Hidden::make('calibration_data.calibration_type')
-                    ->afterStateHydrated(function ($state, $set) {
+                    ->afterStateHydrated(function ($state, $set, $record) {
                         // ถ้ามีค่าอยู่แล้ว (จาก database) ไม่ต้องทำอะไร
                         if (!empty($state)) {
+                            // 🔥 Sync ค่าไปยัง column calibration_type ด้วย
+                            $set('calibration_type', $state);
                             return;
                         }
                         
@@ -203,7 +283,7 @@ class CalibrationRecordResource extends Resource
                         $type = request()->get('type');
                         $calibrationType = match ($type) {
                             'vernier_special' => 'VernierSpecial',
-                            'vernier_digital' => 'VernierCaliperDigital',
+                            'vernier_digital' => 'VernierDigital',
                             'vernier_caliper' => 'VernierCaliper',
                             'depth_vernier' => 'DepthVernier',
                             'vernier_hight_gauge' => 'VernierHightGauge',
@@ -221,8 +301,8 @@ class CalibrationRecordResource extends Resource
                         };
                         
                         if ($calibrationType) {
-                            $set('calibration_type', $calibrationType); // 🔥 column ใหม่
-                            $set('calibration_data.calibration_type', $calibrationType);
+                            $set('calibration_type', $calibrationType); // 🔥 column
+                            $set('calibration_data.calibration_type', $calibrationType); // 🔥 JSON
                         }
                     })
                     ->dehydrated(),
@@ -369,6 +449,12 @@ class CalibrationRecordResource extends Resource
         return Repeater::make($name)
             ->label('รายการจุดตรวจสอบ')
             ->itemLabel(fn (array $state): ?string => 'Point ' . ($state['point'] ?? '?'))
+            ->afterStateHydrated(function ($component, $state, Get $get, Set $set) {
+                $id = $get('instrument_id') ?? request()->query('instrument_id');
+                if ($id && empty($state)) {
+                    self::onInstrumentSelected($id, $set, $get);
+                }
+            })
             ->schema([
                 Forms\Components\Hidden::make('point')->dehydrated(),
                 Forms\Components\Hidden::make('cs_value')->dehydrated(),
@@ -440,6 +526,12 @@ class CalibrationRecordResource extends Resource
             Repeater::make('calibration_data.readings_parallelism')
                 ->label('รายการตรวจสอบความขนาน')
                 ->itemLabel(fn (array $state): ?string => 'S = ' . ($state['s_value'] ?? '?'))
+                ->afterStateHydrated(function ($component, $state, Get $get, Set $set) {
+                    $id = $get('instrument_id') ?? request()->query('instrument_id');
+                    if ($id && empty($state)) {
+                        self::onInstrumentSelected($id, $set, $get);
+                    }
+                })
                 ->schema([
                     Forms\Components\Hidden::make('point')->dehydrated(),
                     Forms\Components\Hidden::make('s_value')->dehydrated(),
@@ -480,6 +572,12 @@ class CalibrationRecordResource extends Resource
         return Repeater::make('calibration_data.readings_pressure')
             ->label('รายการจุดตรวจสอบ')
             ->itemLabel(fn (array $state): ?string => 'Point: ' . ($state['s_value'] ?? '?'))
+            ->afterStateHydrated(function ($component, $state, Get $get, Set $set) {
+                $id = $get('instrument_id') ?? request()->query('instrument_id');
+                if ($id && empty($state)) {
+                    self::onInstrumentSelected($id, $set, $get);
+                }
+            })
             ->schema([
                 Grid::make(6)->schema([
                     TextInput::make('s_value')

@@ -26,7 +26,6 @@ class Dashboard extends BaseDashboard
             DueThisMonthWidget::class,
             CalibratedThisMonthWidget::class,
             OverdueInstrumentsWidget::class,
-            ExternalCalStatusWidget::class,
         ];
     }
 }

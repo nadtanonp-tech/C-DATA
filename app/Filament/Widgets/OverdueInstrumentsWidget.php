@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\On;
+use Illuminate\Support\Str;
 
 // 🔧 Cache TTL constant - 30 minutes
 if (!defined('DASHBOARD_CACHE_TTL')) define('DASHBOARD_CACHE_TTL', 1800);
@@ -195,56 +196,38 @@ class OverdueInstrumentsWidget extends BaseWidget
      */
     private function getCalibrationUrl($record): string
     {
+        $instrument = $record->instrument;
         $instrumentId = $record->instrument_id;
-        $calibrationType = $record->calibration_type ?? null;
+        $calibrationType = $record->calibration_type ?? 'KGauge';
         
-        // Determine the correct route based on calibration_type
-        $routeInfo = match ($calibrationType) {
-            // K-Gauge
-            'KGauge' => ['route' => 'filament.admin.calibration-report.resources.calibration-k-gauge.create', 'type' => null],
-            
-            // Snap Gauge
-            'SnapGauge' => ['route' => 'filament.admin.calibration-report.resources.calibration-snap-gauge.create', 'type' => null],
-            
-            // Plug Gauge
-            'PlugGauge' => ['route' => 'filament.admin.calibration-report.resources.calibration-plug-gauge.create', 'type' => null],
-            
-            // Thread Plug Gauge
-            'ThreadPlugGauge', 'SerrationPlugGauge' => ['route' => 'filament.admin.calibration-report.resources.calibration-thread-plug-gauge.create', 'type' => null],
-            
-            // Thread Ring Gauge
-            'ThreadRingGauge', 'SerrationRingGauge' => ['route' => 'filament.admin.calibration-report.resources.calibration-thread-ring-gauge.create', 'type' => null],
-            
-            // Thread Plug Gauge Fit Wear
-            'ThreadPlugGaugeFitWear' => ['route' => 'filament.admin.calibration-report.resources.calibration-thread-plug-gauge-fit-wear.create', 'type' => null],
-            
-            // Instrument Calibration with specific type
-            'VernierSpecial' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'vernier_special'],
-            'VernierDigital' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'vernier_digital'],
-            'VernierCaliper' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'vernier_caliper'],
-            'DepthVernier' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'depth_vernier'],
-            'VernierHightGauge' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'vernier_hight_gauge'],
-            'DialVernierHightGauge' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'dial_vernier_hight_gauge'],
-            'MicroMeter' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'micro_meter'],
-            'DialCaliper' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'dial_caliper'],
-            'DialIndicator' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'dial_indicator'],
-            'DialTestIndicator' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'dial_test_indicator'],
-            'ThicknessGauge' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'thickness_gauge'],
-            'ThicknessCaliper' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'thickness_caliper'],
-            'CylinderGauge' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'cylinder_gauge'],
-            'ChamferGauge' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'chamfer_gauge'],
-            'PressureGauge' => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => 'pressure_gauge'],
-            
-            // Default: Instrument Calibration without specific type
-            default => ['route' => 'filament.admin.calibration-report.resources.instrument-calibration.create', 'type' => null],
-        };
-        
-        $params = ['instrument_id' => $instrumentId];
-        if ($routeInfo['type']) {
-            $params['type'] = $routeInfo['type'];
+        // 1. ถ้าเครื่องมือถูก set ว่าเป็น External -> ไป ExternalCalResultResource
+        $calPlace = $instrument->cal_place ?? 'Internal';
+        if ($calPlace === 'External') {
+             return route('filament.admin.calibration-report.resources.external-cal-results.create', [
+                'instrument_id' => $instrumentId
+            ]);
+        }
+
+        $gaugeTypes = [
+            'KGauge', 'SnapGauge', 'PlugGauge', 
+            'ThreadPlugGauge', 'SerrationPlugGauge', 
+            'ThreadRingGauge', 'SerrationRingGauge', 
+            'ThreadPlugGaugeFitWear'
+        ];
+
+        // 2. ถ้าเป็น Gauge Type -> ไป GaugeCalibrationResource
+        if (in_array($calibrationType, $gaugeTypes)) {
+            return route('filament.admin.calibration-report.resources.gauge-calibration.create', [
+                'type' => $calibrationType,
+                'instrument_id' => $instrumentId
+            ]);
         }
         
-        return route($routeInfo['route'], $params);
+        // 3. ถ้าเป็น Instrument Type อื่นๆ -> ไป CalibrationRecordResource (Instrument Calibration)
+        return route('filament.admin.calibration-report.resources.instrument-calibration.create', [
+            'type' => Str::snake($calibrationType),
+            'instrument_id' => $instrumentId
+        ]);
     }
 
     public function getTableHeading(): string
@@ -271,8 +254,8 @@ class OverdueInstrumentsWidget extends BaseWidget
         $levelText = $this->selectedLevel ? " - Level {$this->selectedLevel}" : '';
         
         // สร้างข้อความเดือน/ปี
-        $monthText = $month === 0 ? '(ทั้งหมด)' : Carbon::createFromDate(2024, $month, 1)->locale('th')->translatedFormat('F');
-        $yearText = $year === 0 ? '(ทั้งหมด)' : 'ค.ศ. ' . $year;
+        $monthText = $month === 0 ? '(ทุกเดือน)' : Carbon::createFromDate(2024, $month, 1)->locale('th')->translatedFormat('F');
+        $yearText = $year === 0 ? '(ทุกปี)' : 'ค.ศ. ' . $year;
         
         return "เครื่องมือที่เลยกำหนดสอบเทียบ - {$monthText} {$yearText}{$levelText} ({$count} รายการ)";
     }

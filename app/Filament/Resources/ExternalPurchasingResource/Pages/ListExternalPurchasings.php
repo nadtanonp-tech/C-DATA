@@ -17,4 +17,11 @@ class ListExternalPurchasings extends ListRecords
                 ->label('สร้างใบส่งสอบเทียบ'),
         ];
     }
+
+    protected function getHeaderWidgets(): array
+    {
+        return [
+            ExternalPurchasingResource\Widgets\StatusWidget::class,
+        ];
+    }
 }

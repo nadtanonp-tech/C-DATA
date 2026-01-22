@@ -333,12 +333,6 @@ class ToolTypeResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('name')
-                    ->label('Type Name')
-                    ->options(fn () => \App\Models\ToolType::pluck('name', 'name')->toArray())
-                    ->searchable()
-                    ->columnSpan(2)
-                    ->preload(),
                 Tables\Filters\TernaryFilter::make('has_instruments')
                     ->label('มีเครื่องมือใช้งาน')
                     ->placeholder('All')

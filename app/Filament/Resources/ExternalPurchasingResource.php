@@ -87,12 +87,14 @@ class ExternalPurchasingResource extends Resource
                                 ->label('Name')
                                 ->disabled()
                                 ->dehydrated(false)
+                                ->formatStateUsing(fn ($state, ?PurchasingRecord $record) => $state ?? $record?->instrument?->toolType?->name)
                                 ->columnSpan(2),
 
                             TextInput::make('instrument_size')
                                 ->label('Size')
                                 ->disabled()
                                 ->dehydrated(false)
+                                ->formatStateUsing(fn ($state, ?PurchasingRecord $record) => $state ?? $record?->instrument?->toolType?->size)
                                 ->columnSpan(2),
                         ]),
 
@@ -101,6 +103,7 @@ class ExternalPurchasingResource extends Resource
                                 ->label('Serial No')
                                 ->disabled()
                                 ->dehydrated(false)
+                                ->formatStateUsing(fn ($state, ?PurchasingRecord $record) => $state ?? $record?->instrument?->serial_no)
                                 ->columnSpan(2),
 
                             Select::make('requester')
@@ -281,6 +284,51 @@ class ExternalPurchasingResource extends Resource
             ->actions([
                 Tables\Actions\ViewAction::make()->color('gray'),
                 Tables\Actions\EditAction::make()->color('warning'),
+                Tables\Actions\Action::make('update_status')
+                    ->label('Set Status')
+                    ->icon('heroicon-m-wrench')
+                    ->color('info')
+                    ->form([
+                        Select::make('status')
+                            ->label('Status')
+                            ->options([
+                                'Draft' => 'Draft (ร่าง)',
+                                'Pending' => 'Pending (รอดำเนินการ)',
+                                'Sent' => 'Sent (ส่งแล้ว)',
+                                'Received' => 'Received (รับของแล้ว)',
+                                'Completed' => 'Completed (เสร็จสิ้น)',
+                            ])
+                            ->required()
+                            ->native(false)
+                            ->default(fn (PurchasingRecord $record) => $record->status),
+                        Textarea::make('remark')
+                            ->label('หมายเหตุ (Remark)')
+                            ->rows(3),
+                    ])
+                    ->action(function (PurchasingRecord $record, array $data) {
+                        $oldStatus = $record->status;
+                        $newStatus = $data['status'];
+                        $remark = $data['remark'] ?? null;
+
+                        // Save History
+                        \App\Models\PurchasingStatusHistory::create([
+                            'purchasing_record_id' => $record->id,
+                            'old_status' => $oldStatus,
+                            'new_status' => $newStatus,
+                            'remark' => $remark,
+                            'changed_by' => auth()->id(),
+                        ]);
+
+                        $record->update([
+                            'status' => $newStatus,
+                            'remark' => $remark ?? $record->remark,
+                        ]);
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading('ยืนยันการเปลี่ยนสถานะ')
+                    ->modalDescription('คุณต้องการเปลี่ยนสถานะรายการนี้ใช่หรือไม่?')
+                    ->modalSubmitActionLabel('ยืนยัน (Confirm)'),
+                
                 Tables\Actions\Action::make('record_result')
                     ->label('บันทึกผล')
                     ->icon('heroicon-o-clipboard-document-check')
@@ -304,7 +352,9 @@ class ExternalPurchasingResource extends Resource
 
     public static function getRelations(): array
     {
-        return [];
+        return [
+            ExternalPurchasingResource\RelationManagers\StatusHistoriesRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

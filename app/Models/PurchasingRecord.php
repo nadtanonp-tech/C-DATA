@@ -30,6 +30,11 @@ class PurchasingRecord extends Model
         return $this->belongsTo(Instrument::class);
     }
 
+    public function statusHistories(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(PurchasingStatusHistory::class);
+    }
+
     /**
      * 🔗 เชื่อมกับ Calibration Log (ผลสอบเทียบ)
      */

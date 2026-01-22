@@ -81,7 +81,12 @@ class ExternalCalResultResource extends Resource
                                 ->required()
                                 ->live()
                                 ->columnSpan(3)
+                                ->afterStateHydrated(function (Set $set, ?string $state) {
+                                    self::updateInstrumentDetails($set, $state);
+                                })
                                 ->afterStateUpdated(function (Set $set, ?string $state) {
+                                    self::updateInstrumentDetails($set, $state);
+                                    return;
                                     if ($state) {
                                         $instrument = Instrument::with(['toolType', 'department'])->find($state);
                                         if ($instrument) {
@@ -783,5 +788,70 @@ class ExternalCalResultResource extends Resource
             'view' => Pages\ViewExternalCalResult::route('/{record}'),
             'edit' => Pages\EditExternalCalResult::route('/{record}/edit'),
         ];
+    }
+    public static function updateInstrumentDetails(\Filament\Forms\Set $set, ?string $state): void
+    {
+        if ($state) {
+            $instrument = Instrument::with(['toolType', 'department'])->find($state);
+            if ($instrument) {
+                $set('instrument_name', $instrument->toolType?->name ?? '-');
+                $set('instrument_size', $instrument->toolType?->size ?? '-');
+                $set('instrument_serial', $instrument->serial_no ?? '-');
+                $set('instrument_department', $instrument->department?->name ?? '-');
+                
+                // ดึงข้อมูลจาก dimension_specs ของ ToolType และแปลงเป็นรูปแบบ Repeater
+                // สำหรับ External Cal ใช้เฉพาะ specs ที่มี criteria (cri_plus/cri_minus)
+                $dimensionSpecs = $instrument->toolType?->dimension_specs ?? [];
+                $ranges = [];
+                
+                foreach ($dimensionSpecs as $point) {
+                    // แต่ละ point อาจมีหลาย specs
+                    $specs = $point['specs'] ?? [];
+                    foreach ($specs as $spec) {
+                        // กรองเฉพาะ specs ที่มี criteria (สำหรับ External Cal)
+                        // ถ้าไม่มี cri_plus และ cri_minus = เป็น spec สำหรับ Internal Cal
+                        if (empty($spec['cri_plus']) && empty($spec['cri_minus'])) {
+                            continue; // ข้าม specs ที่ไม่มี criteria
+                        }
+                        
+                        $ranges[] = [
+                            'range_name' => $point['point'] ?? '',
+                            'label' => $spec['label'] ?? '',
+                            'criteria_plus' => $spec['cri_plus'] ?? null,
+                            'criteria_minus' => $spec['cri_minus'] ?? null,
+                            'unit' => $spec['cri_unit'] ?? 'um',
+                            'error_max' => null, // ให้ user กรอกเอง
+                            'index' => null,
+                        ];
+                    }
+                }
+                
+                // Pre-fill Repeater ด้วยข้อมูล Range/Criteria
+                $set('calibration_data.ranges', $ranges);
+                
+                // ดึงข้อมูลจาก Record ก่อนหน้า (ถ้ามี)
+                $lastRecord = \App\Models\CalibrationRecord::where('instrument_id', $state)
+                    ->where('cal_place', 'External')
+                    ->orderBy('cal_date', 'desc')
+                    ->first();
+                    
+                if ($lastRecord) {
+                    $set('last_cal_date', $lastRecord->cal_date?->format('Y-m-d'));
+                    $set('last_cal_date_display', $lastRecord->cal_date?->format('d/m/Y'));
+                    $lastCalData = $lastRecord->calibration_data ?? [];
+                    // ตรวจสอบหลายชื่อ field เพราะข้อมูลเก่าอาจใช้ ErrorMaxNow
+                    $lastErrorMax = $lastCalData['error_max_now'] 
+                        ?? $lastCalData['ErrorMaxNow'] 
+                        ?? $lastCalData['drift_rate']
+                        ?? null;
+                    $set('last_error_max', $lastErrorMax);
+                }
+            }
+        } else {
+             $set('instrument_name', null);
+             $set('instrument_size', null);
+             $set('instrument_serial', null);
+             $set('instrument_department', null);
+        }
     }
 }

@@ -27,7 +27,8 @@ class InstrumentStatsWidget extends BaseWidget
         $totalInstruments = Instrument::count();
         $activeInstruments = Instrument::where('status', 'ใช้งาน')->count();
         $spareInstruments = Instrument::where('status', 'Spare')->count();
-        $lostCancelledInstruments = Instrument::whereIn('status', ['สูญหาย', 'ยกเลิก'])->count();
+        $lostInstruments = Instrument::where('status', 'สูญหาย')->count();
+        $cancelledInstruments = Instrument::where('status', 'ยกเลิก')->count();
         $mastertypeInstruments = Instrument::where('equip_type', 'Master')->count();
         $workingtypeInstruments = Instrument::where('equip_type', 'Working')->count();
         $internaltypeInstruments = Instrument::where('cal_place', 'Internal')->count();
@@ -56,8 +57,13 @@ class InstrumentStatsWidget extends BaseWidget
                 ->descriptionIcon('heroicon-m-wrench')
                 ->color('warning'),
                 
-            Stat::make('Inactive/Lost', number_format($lostCancelledInstruments))
-                ->description('สถานะ: สูญหาย/ยกเลิก')
+            Stat::make('Inactive', number_format($lostInstruments))
+                ->description('สถานะ: สูญหาย')
+                ->descriptionIcon('heroicon-m-exclamation-triangle')
+                ->color('danger'),
+            
+            Stat::make('Cancelled', number_format($cancelledInstruments))
+                ->description('สถานะ: ยกเลิก')
                 ->descriptionIcon('heroicon-m-exclamation-triangle')
                 ->color('danger'),
 

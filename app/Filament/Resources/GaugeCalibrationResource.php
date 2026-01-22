@@ -1813,12 +1813,6 @@ class GaugeCalibrationResource extends Resource
             ->paginationPageOptions([10, 25, 50, 100, 500])
             ->deferLoading()
             ->columns([
-                TextColumn::make('calibration_type')
-                    ->label('Gauge Type')
-                    ->badge()
-                    ->formatStateUsing(fn ($state) => self::$gaugeTypes[$state]['label'] ?? $state)
-                    ->color('primary'),
-
                 TextColumn::make('instrument.code_no')
                     ->label('ID Code Instrument')
                     ->searchable()

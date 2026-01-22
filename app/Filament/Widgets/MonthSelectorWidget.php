@@ -114,7 +114,7 @@ class MonthSelectorWidget extends Widget implements HasForms
                     ->label('เลือก Level')
                     ->native(false)
                     ->options([
-                        'all' => 'ทั้งหมด',
+                        'all' => 'Level ทั้งหมด',
                         'A' => 'Level A',
                         'B' => 'Level B',
                         'C' => 'Level C',
@@ -124,7 +124,7 @@ class MonthSelectorWidget extends Widget implements HasForms
                     ->label('สถานที่สอบเทียบ')
                     ->native(false)
                     ->options([
-                        'all' => 'ทั้งหมด',
+                        'all' => 'สถานที่ ทั้งหมด',
                         'Internal' => 'ภายใน (Internal)',
                         'External' => 'ภายนอก (External)',
                     ])
@@ -141,7 +141,7 @@ class MonthSelectorWidget extends Widget implements HasForms
         $currentMonth = (int) Carbon::now()->format('m');
         
         $months = [
-            0 => 'ทั้งหมด',
+            0 => 'ทุกเดือน',
             1 => 'มกราคม',
             2 => 'กุมภาพันธ์',
             3 => 'มีนาคม',
@@ -173,7 +173,7 @@ class MonthSelectorWidget extends Widget implements HasForms
             $currentYear = (int) Carbon::now()->format('Y');
             
             // ตัวเลือก "ทั้งหมด"
-            $options[0] = 'ทั้งหมด';
+            $options[0] = 'ทุกปี';
             
             // ดึงปีจากฐานข้อมูล (cal_date และ next_cal_date)
             $yearsFromCalDate = \Illuminate\Support\Facades\DB::table('calibration_logs')

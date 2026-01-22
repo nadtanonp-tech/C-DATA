@@ -31,12 +31,14 @@ class OverdueInstrumentsWidget extends BaseWidget
     public ?int $selectedMonth = null;
     public ?int $selectedYear = null;
     public ?string $selectedLevel = null;
+    public ?string $selectedCalPlace = null; // 🔥 filter สถานที่สอบเทียบ
 
     public function mount(): void
     {
         $this->selectedMonth = (int) Carbon::now()->format('m');
         $this->selectedYear = (int) Carbon::now()->format('Y');
         $this->selectedLevel = null;
+        $this->selectedCalPlace = null;
     }
 
     #[On('filter-changed')]
@@ -45,6 +47,7 @@ class OverdueInstrumentsWidget extends BaseWidget
         $this->selectedMonth = $data['month'] ?? $this->selectedMonth;
         $this->selectedYear = $data['year'] ?? $this->selectedYear;
         $this->selectedLevel = $data['level'] ?: null;
+        $this->selectedCalPlace = $data['cal_place'] ?? null; // 🔥 รับ cal_place
         $this->resetTable();
     }
 
@@ -99,6 +102,11 @@ class OverdueInstrumentsWidget extends BaseWidget
                 
                 if ($widget->selectedLevel) {
                     $query->where('cal_level', $widget->selectedLevel);
+                }
+                
+                // 🔥 กรองตาม cal_place
+                if ($widget->selectedCalPlace) {
+                    $query->where('cal_place', $widget->selectedCalPlace);
                 }
                 
                 return $query;
@@ -244,14 +252,18 @@ class OverdueInstrumentsWidget extends BaseWidget
         $month = $this->selectedMonth ?? (int) Carbon::now()->format('m');
         $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
         $level = $this->selectedLevel ?? '';
+        $calPlace = $this->selectedCalPlace ?? ''; // 🔥 เพิ่ม cal_place
         
         // 🚀 ใช้ cache เพื่อไม่ต้อง query นับจำนวนทุกครั้ง (cache 30 นาที)
-        $cacheKey = "overdue_count_{$month}_{$year}_{$level}";
+        $cacheKey = "overdue_count_{$month}_{$year}_{$level}_{$calPlace}";
         $count = Cache::remember($cacheKey, DASHBOARD_CACHE_TTL, function () {
             $overdueIds = $this->getOverdueRecordIds();
             $query = CalibrationRecord::whereIn('id', $overdueIds);
             if ($this->selectedLevel) {
                 $query->where('cal_level', $this->selectedLevel);
+            }
+            if ($this->selectedCalPlace) {
+                $query->where('cal_place', $this->selectedCalPlace);
             }
             return $query->count();
         });
@@ -260,7 +272,7 @@ class OverdueInstrumentsWidget extends BaseWidget
         
         // สร้างข้อความเดือน/ปี
         $monthText = $month === 0 ? '(ทั้งหมด)' : Carbon::createFromDate(2024, $month, 1)->locale('th')->translatedFormat('F');
-        $yearText = $year === 0 ? '(ทั้งหมด)' : 'พ.ศ. ' . ($year + 543);
+        $yearText = $year === 0 ? '(ทั้งหมด)' : 'ค.ศ. ' . $year;
         
         return "เครื่องมือที่เลยกำหนดสอบเทียบ - {$monthText} {$yearText}{$levelText} ({$count} รายการ)";
     }
@@ -276,8 +288,7 @@ class OverdueInstrumentsWidget extends BaseWidget
         // 5 ปีก่อนหน้า
         for ($i = 5; $i >= 0; $i--) {
             $year = $now->copy()->subYears($i)->format('Y');
-            $thaiYear = (int)$year + 543;
-            $options[$year] = "พ.ศ. {$thaiYear} ({$year})";
+            $options[$year] = "ค.ศ. {$year}";
         }
 
         return $options;

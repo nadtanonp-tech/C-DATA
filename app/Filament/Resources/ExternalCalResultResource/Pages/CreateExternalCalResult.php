@@ -28,8 +28,11 @@ class CreateExternalCalResult extends CreateRecord
             $purchasing = \App\Models\PurchasingRecord::find($purchasingId);
             if ($purchasing) {
                 $fillData['purchasing_cal_place'] = $purchasing->cal_place;
-                $fillData['purchasing_net_price'] = $purchasing->net_price;
                 $fillData['purchasing_send_date'] = $purchasing->send_date;
+                // ดึง net_price มาใส่ใน price field
+                if (!empty($purchasing->net_price)) {
+                    $fillData['price'] = $purchasing->net_price;
+                }
             }
         }
         
@@ -53,7 +56,7 @@ class CreateExternalCalResult extends CreateRecord
     
     protected function getRedirectUrl(): string
     {
-        return $this->getResource()::getUrl('index');
+        return $this->getResource()::getUrl('view', ['record' => $this->record]);
     }
     
     /**
@@ -63,15 +66,15 @@ class CreateExternalCalResult extends CreateRecord
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         // Store purchasing data temporarily for afterCreate
+        // 🔥 ใช้ price จาก calibration_logs แทน purchasing_net_price
         $this->purchasingData = [
             'cal_place' => $data['purchasing_cal_place'] ?? null,
-            'net_price' => $data['purchasing_net_price'] ?? null,
+            'net_price' => $data['price'] ?? null, // Sync price to purchasing_records.net_price
             'send_date' => $data['purchasing_send_date'] ?? null,
         ];
         
         // Remove temporary fields that don't belong to calibration_logs table
         unset($data['purchasing_cal_place']);
-        unset($data['purchasing_net_price']);
         unset($data['purchasing_send_date']);
         
         return $data;

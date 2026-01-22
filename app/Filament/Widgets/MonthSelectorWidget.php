@@ -25,12 +25,14 @@ class MonthSelectorWidget extends Widget implements HasForms
     public ?int $selectedMonth = null;
     public ?int $selectedYear = null;
     public ?string $selectedLevel = null;
+    public ?string $selectedCalPlace = null; // 🔥 เพิ่ม filter สถานที่สอบเทียบ
 
     public function mount(): void
     {
         $this->selectedMonth = (int) Carbon::now()->format('m');
         $this->selectedYear = (int) Carbon::now()->format('Y');
         $this->selectedLevel = 'all';
+        $this->selectedCalPlace = 'all'; // 🔥 Default = ทั้งหมด
     }
 
     public function resetFilters(): void
@@ -39,6 +41,7 @@ class MonthSelectorWidget extends Widget implements HasForms
         $this->selectedMonth = (int) Carbon::now()->format('m');
         $this->selectedYear = (int) Carbon::now()->format('Y');
         $this->selectedLevel = 'all';
+        $this->selectedCalPlace = 'all'; // 🔥 Reset cal_place
         
         // 🔄 Clear all dashboard-related cache
         $this->clearDashboardCache();
@@ -89,6 +92,7 @@ class MonthSelectorWidget extends Widget implements HasForms
             'month' => $this->selectedMonth,
             'year' => $this->selectedYear,
             'level' => $this->selectedLevel === 'all' ? null : $this->selectedLevel,
+            'cal_place' => $this->selectedCalPlace === 'all' ? null : $this->selectedCalPlace, // 🔥 เพิ่ม cal_place
         ]);
     }
 
@@ -114,6 +118,15 @@ class MonthSelectorWidget extends Widget implements HasForms
                         'A' => 'Level A',
                         'B' => 'Level B',
                         'C' => 'Level C',
+                    ])
+                    ->default('all'),
+                Select::make('selectedCalPlace')
+                    ->label('สถานที่สอบเทียบ')
+                    ->native(false)
+                    ->options([
+                        'all' => 'ทั้งหมด',
+                        'Internal' => 'ภายใน (Internal)',
+                        'External' => 'ภายนอก (External)',
                     ])
                     ->default('all'),
             ])
@@ -181,10 +194,9 @@ class MonthSelectorWidget extends Widget implements HasForms
             
             foreach ($allYears as $year) {
                 $year = (int) $year;
-                $thaiYear = $year + 543;
                 $label = $year === $currentYear 
-                    ? "พ.ศ. {$thaiYear} (ปัจจุบัน)" 
-                    : "พ.ศ. {$thaiYear}";
+                    ? "ค.ศ. {$year} (ปัจจุบัน)" 
+                    : "ค.ศ. {$year}";
                 $options[$year] = $label;
             }
 

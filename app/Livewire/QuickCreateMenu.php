@@ -3,59 +3,58 @@
 namespace App\Livewire;
 
 use Livewire\Component;
-use App\Filament\Resources\CalibrationKNewResource;
-use App\Filament\Resources\CalibrationSnapGaugeResource;
-use App\Filament\Resources\CalibrationPlugGaugeResource;
-use App\Filament\Resources\CalibrationThreadPlugGaugeResource;
-use App\Filament\Resources\CalibrationThreadRingGaugeResource;
-use App\Filament\Resources\CalibrationThreadPlugGaugeFitWearResource;
 use App\Filament\Resources\CalibrationRecordResource;
-
+use App\Filament\Resources\GaugeCalibrationResource;
+use App\Filament\Resources\ExternalCalResultResource;
 class QuickCreateMenu extends Component
 {
     public function getMenuItems(): array
     {
         return [
             [
-                'label' => 'Gauge Calibration',
-                'icon' => 'heroicon-o-cog-6-tooth',
+                'label' => 'สอบเทียบภายใน (Internal)',
+                'icon' => 'heroicon-o-rectangle-stack',
                 'items' => [
                     [
                         'label' => 'K-Gauge',
-                        'url' => CalibrationKNewResource::getUrl('create'),
+                        'url' => GaugeCalibrationResource::getUrl('create', ['type' => 'KGauge']),
                         'icon' => 'heroicon-o-plus-circle',
                     ],
                     [
                         'label' => 'Snap Gauge',
-                        'url' => CalibrationSnapGaugeResource::getUrl('create'),
+                        'url' => GaugeCalibrationResource::getUrl('create', ['type' => 'SnapGauge']),
                         'icon' => 'heroicon-o-plus-circle',
                     ],
                     [
                         'label' => 'Plug Gauge',
-                        'url' => CalibrationPlugGaugeResource::getUrl('create'),
+                        'url' => GaugeCalibrationResource::getUrl('create', ['type' => 'PlugGauge']),
                         'icon' => 'heroicon-o-plus-circle',
                     ],
                     [
                         'label' => 'Thread Plug Gauge',
-                        'url' => CalibrationThreadPlugGaugeResource::getUrl('create'),
+                        'url' => GaugeCalibrationResource::getUrl('create', ['type' => 'ThreadPlugGauge']),
+                        'icon' => 'heroicon-o-plus-circle',
+                    ],
+                    [
+                        'label' => 'Serration Plug Gauge',
+                        'url' => GaugeCalibrationResource::getUrl('create', ['type' => 'SerrationPlugGauge']),
                         'icon' => 'heroicon-o-plus-circle',
                     ],
                     [
                         'label' => 'Thread Ring Gauge',
-                        'url' => CalibrationThreadRingGaugeResource::getUrl('create'),
+                        'url' => GaugeCalibrationResource::getUrl('create', ['type' => 'ThreadRingGauge']),
+                        'icon' => 'heroicon-o-plus-circle',
+                    ],
+                    [
+                        'label' => 'Serration Ring Gauge',
+                        'url' => GaugeCalibrationResource::getUrl('create', ['type' => 'SerrationRingGauge']),
                         'icon' => 'heroicon-o-plus-circle',
                     ],
                     [
                         'label' => 'Plug Gauge (Fit/Wear)',
-                        'url' => CalibrationThreadPlugGaugeFitWearResource::getUrl('create'),
+                        'url' => GaugeCalibrationResource::getUrl('create', ['type' => 'ThreadPlugGaugeFitWear']),
                         'icon' => 'heroicon-o-plus-circle',
                     ],
-                ],
-            ],
-            [
-                'label' => 'Instrument Calibration',
-                'icon' => 'heroicon-o-clipboard-document-check',
-                'items' => [
                     [
                         'label' => 'Vernier Caliper',
                         'url' => CalibrationRecordResource::getUrl('create', ['type' => 'vernier_caliper']),
@@ -129,6 +128,17 @@ class QuickCreateMenu extends Component
                     [
                         'label' => 'Pressure Gauge',
                         'url' => CalibrationRecordResource::getUrl('create', ['type' => 'pressure_gauge']),
+                        'icon' => 'heroicon-o-plus-circle',
+                    ],
+                ],
+            ],
+            [
+                'label' => 'สอบเทียบภายนอก (External)',
+                'icon' => 'heroicon-o-rectangle-stack',
+                'items' => [
+                    [
+                        'label' => 'External Calibration',
+                        'url' => ExternalCalResultResource::getUrl('create'),
                         'icon' => 'heroicon-o-plus-circle',
                     ],
                 ],

@@ -14,7 +14,7 @@ class ListExternalCalResults extends ListRecords
     {
         return [
             Actions\CreateAction::make()
-                ->label('บันทึกผลสอบเทียบ'),
+                ->label('New External Calibration'),
         ];
     }
 }

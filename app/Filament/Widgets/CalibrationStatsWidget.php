@@ -23,12 +23,14 @@ class CalibrationStatsWidget extends BaseWidget
     public ?int $selectedMonth = null;
     public ?int $selectedYear = null;
     public ?string $selectedLevel = null;
+    public ?string $selectedCalPlace = null; // 🔥 filter สถานที่สอบเทียบ
 
     public function mount(): void
     {
         $this->selectedMonth = (int) Carbon::now()->format('m');
         $this->selectedYear = (int) Carbon::now()->format('Y');
         $this->selectedLevel = null;
+        $this->selectedCalPlace = null;
     }
 
     #[On('filter-changed')]
@@ -37,6 +39,7 @@ class CalibrationStatsWidget extends BaseWidget
         $this->selectedMonth = $data['month'] ?? $this->selectedMonth;
         $this->selectedYear = $data['year'] ?? $this->selectedYear;
         $this->selectedLevel = $data['level'] ?: null;
+        $this->selectedCalPlace = $data['cal_place'] ?? null; // 🔥 รับ cal_place
     }
 
     /**
@@ -81,6 +84,11 @@ class CalibrationStatsWidget extends BaseWidget
             $query->where('cal_level', $this->selectedLevel);
         }
         
+        // 🔥 กรองตาม cal_place
+        if ($this->selectedCalPlace) {
+            $query->where('cal_place', $this->selectedCalPlace);
+        }
+        
         return $query->count();
     }
 
@@ -113,6 +121,11 @@ class CalibrationStatsWidget extends BaseWidget
             $query->where('cal_level', $this->selectedLevel);
         }
         
+        // 🔥 กรองตาม cal_place
+        if ($this->selectedCalPlace) {
+            $query->where('cal_place', $this->selectedCalPlace);
+        }
+        
         return $query->count();
     }
 
@@ -127,6 +140,11 @@ class CalibrationStatsWidget extends BaseWidget
             $query->where('cal_level', $this->selectedLevel);
         }
         
+        // 🔥 กรองตาม cal_place
+        if ($this->selectedCalPlace) {
+            $query->where('cal_place', $this->selectedCalPlace);
+        }
+        
         return $query->count();
     }
 
@@ -139,7 +157,7 @@ class CalibrationStatsWidget extends BaseWidget
         $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
         
         $monthText = $month === 0 ? '(ทั้งหมด)' : Carbon::createFromDate(2024, $month, 1)->locale('th')->translatedFormat('F');
-        $yearText = $year === 0 ? '' : 'พ.ศ. ' . ($year + 543);
+        $yearText = $year === 0 ? '' : 'ค.ศ. ' . $year;
         
         if ($month === 0 && $year === 0) {
             return 'ทั้งหมด';
@@ -159,32 +177,41 @@ class CalibrationStatsWidget extends BaseWidget
         $levelLabel = $this->selectedLevel ? " Level {$this->selectedLevel}" : '';
         
         $month = $this->selectedMonth ?? (int) Carbon::now()->format('m');
-        $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
+        $year = (string)($this->selectedYear ?? (int) Carbon::now()->format('Y')); // Cast to string for cache key consistency
         $level = $this->selectedLevel ?? '';
+        $calPlace = $this->selectedCalPlace ?? ''; // 🔥 เพิ่ม cal_place ใน key
         
         // 🚀 ใช้ cache เพื่อไม่ต้อง query นับจำนวนทุกครั้ง (cache 30 นาที)
-        $cacheKey = "stats_counts_{$month}_{$year}_{$level}";
-        $counts = Cache::remember($cacheKey, DASHBOARD_CACHE_TTL, function () use ($startDate, $endDate) {
-            return [
-                'due' => $this->countDueRecords($startDate, $endDate),
-                'overdue' => $this->countOverdue(),
-                'calibrated' => $this->countCalibrated($startDate, $endDate),
-            ];
+        // Caching each stat individually to allow for more granular invalidation if needed
+        $dueCacheKey = "due_stats_{$month}_{$year}_{$level}_{$calPlace}";
+        $calibratedCacheKey = "calibrated_stats_{$month}_{$year}_{$level}_{$calPlace}";
+        $overdueCacheKey = "overdue_stats_{$month}_{$year}_{$level}_{$calPlace}";
+
+        $dueCount = Cache::remember($dueCacheKey, DASHBOARD_CACHE_TTL, function () use ($startDate, $endDate) {
+            return $this->countDueRecords($startDate, $endDate);
+        });
+
+        $calibratedCount = Cache::remember($calibratedCacheKey, DASHBOARD_CACHE_TTL, function () use ($startDate, $endDate) {
+            return $this->countCalibrated($startDate, $endDate);
+        });
+
+        $overdueCount = Cache::remember($overdueCacheKey, DASHBOARD_CACHE_TTL, function () {
+            return $this->countOverdue();
         });
 
         return [
-            Stat::make('ครบกำหนด', $counts['due'])
+            Stat::make('ครบกำหนด', $dueCount)
                 ->description("เครื่องมือที่ต้องสอบเทียบ {$dateLabel}{$levelLabel}")
                 ->descriptionIcon('heroicon-m-calendar')
                 ->color('primary'),
-            Stat::make('สอบเทียบแล้ว', $counts['calibrated'])
+            Stat::make('สอบเทียบแล้ว', $calibratedCount)
                 ->description("เครื่องมือที่สอบเทียบแล้ว {$dateLabel}{$levelLabel}")
                 ->descriptionIcon('heroicon-m-check-circle')
                 ->color('success'),
-            Stat::make('เลยกำหนด', $counts['overdue'])
+            Stat::make('เลยกำหนด', $overdueCount)
                 ->description("เครื่องมือที่เลยกำหนดสอบเทียบ{$levelLabel}")
                 ->descriptionIcon('heroicon-m-exclamation-triangle')
-                ->color($counts['overdue'] > 0 ? 'danger' : 'success'),
+                ->color($overdueCount > 0 ? 'danger' : 'success'),
         ];
     }
 }

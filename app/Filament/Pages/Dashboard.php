@@ -9,6 +9,7 @@ use App\Filament\Widgets\DueThisMonthWidget;
 use App\Filament\Widgets\CalibratedThisMonthWidget;
 use App\Filament\Widgets\OverdueInstrumentsWidget;
 use App\Filament\Widgets\ExternalCalStatusWidget;
+use App\Filament\Widgets\CalibrationCostChartWidget;
 
 class Dashboard extends BaseDashboard
 {
@@ -20,11 +21,12 @@ class Dashboard extends BaseDashboard
     {
         return [
             CalibrationStatsWidget::class,
+            CalibrationCostChartWidget::class,
             MonthSelectorWidget::class,
             DueThisMonthWidget::class,
             CalibratedThisMonthWidget::class,
             OverdueInstrumentsWidget::class,
-            ExternalCalStatusWidget::class, // สถานะการสอบเทียบภายนอก
+            ExternalCalStatusWidget::class,
         ];
     }
 }

@@ -25,15 +25,17 @@ use Filament\Forms\Components\Hidden;
 use Filament\Forms\Set;
 use Filament\Forms\Get;
 use Carbon\Carbon;
+use App\Filament\Clusters\CalibrationReport;
 
 class ExternalCalResultResource extends Resource
 {
     protected static ?string $model = CalibrationRecord::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
-    protected static ?string $navigationLabel = 'ผลการสอบเทียบ (External Cal)';
-    protected static ?string $modelLabel = 'ผลการสอบเทียบภายนอก';
-    protected static ?string $pluralModelLabel = 'ผลการสอบเทียบภายนอก';
+    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationLabel = 'External Calibration';
+    protected static ?string $modelLabel = 'External Calibration';
+    protected static ?string $cluster = CalibrationReport::class;
+    protected static ?string $pluralModelLabel = 'External Calibration';
     protected static ?string $navigationGroup = 'สอบเทียบภายนอก (External)';
     protected static ?int $navigationSort = 2;
 
@@ -57,8 +59,7 @@ class ExternalCalResultResource extends Resource
                 Hidden::make('calibration_data.calibration_type')->default('ExternalCal')->dehydrated(),
 
                 // Section 1: ข้อมูลเครื่องมือ
-                Section::make('ข้อมูลเครื่องมือ')
-                    ->description('เลือกเครื่องมือที่ต้องการสอบเทียบ')
+                Section::make('ข้อมูลการสอบเทียบ (Calibration Info)')
                     ->collapsible()
                     ->schema([
                         Grid::make(10)->schema([
@@ -79,7 +80,7 @@ class ExternalCalResultResource extends Resource
                                 ->preload()
                                 ->required()
                                 ->live()
-                                ->columnSpan(4)
+                                ->columnSpan(3)
                                 ->afterStateUpdated(function (Set $set, ?string $state) {
                                     if ($state) {
                                         $instrument = Instrument::with(['toolType', 'department'])->find($state);
@@ -144,16 +145,13 @@ class ExternalCalResultResource extends Resource
                                 ->label('Name')
                                 ->disabled()
                                 ->dehydrated(false)
-                                ->columnSpan(3),
+                                ->columnSpan(2),
 
                             TextInput::make('instrument_size')
                                 ->label('Size')
                                 ->disabled()
                                 ->dehydrated(false)
-                                ->columnSpan(3),
-                        ]),
-
-                        Grid::make(10)->schema([
+                                ->columnSpan(2),
                             TextInput::make('instrument_serial')
                                 ->label('Serial No')
                                 ->disabled()
@@ -164,7 +162,11 @@ class ExternalCalResultResource extends Resource
                                 ->label('แผนก')
                                 ->disabled()
                                 ->dehydrated(false)
-                                ->columnSpan(2),
+                                ->columnSpan(1),
+                        ]),
+
+                        Grid::make(10)->schema([
+                            
                         ]),
                     ]),
                 
@@ -173,43 +175,46 @@ class ExternalCalResultResource extends Resource
                     ->description('ข้อมูลนี้จะถูกบันทึกไปยัง รายการส่งสอบเทียบ โดยอัตโนมัติ')
                     ->collapsible()
                     ->schema([
-                        Grid::make(6)->schema([
+                        Grid::make(10)->schema([
                             TextInput::make('purchasing_cal_place')
                                 ->label('สถานที่สอบเทียบจริง')
                                 ->placeholder('บริษัทที่ส่งไปจริง')
-                                ->columnSpan(2),
-
-                            TextInput::make('purchasing_net_price')
-                                ->label('Price (ราคาจริง)')
-                                ->numeric()
-                                ->prefix('฿')
                                 ->columnSpan(2),
 
                             DatePicker::make('purchasing_send_date')
                                 ->label('วันที่ส่งจริง')
                                 ->displayFormat('d/m/Y')
                                 ->columnSpan(2),
+
+                            TextInput::make('price')
+                                ->label('ราคาจริง (บาท)')
+                                ->numeric()
+                                ->prefix('฿')
+                                ->placeholder('0.00')
+                                ->step(0.01)
+                                ->default(0)
+                                ->columnSpan(2),
                         ]),
 
-                        Grid::make(6)->schema([
+                        Grid::make(10)->schema([
                             TextInput::make('calibration_data.cer_no')
                                 ->label('Cer No (Certificate No)')
-                                ->columnSpan(3),
+                                ->columnSpan(5),
 
                             TextInput::make('calibration_data.trace_place')
                                 ->label('TracePlace')
-                                ->columnSpan(3),
+                                ->columnSpan(5),
                         ]),
                     ]),
 
                 // Section 2: ข้อมูลการสอบเทียบ
-                Section::make('ข้อมูลการสอบเทียบ')
+                Section::make('ข้อมูลวันที่ Cal & คํานวน FreqCal')
                     ->description('ระบบได้ดึงข้อมูล LastCal ไว้เเล้ว กรุณาเลือกวันที่ Cal เพื่อให้ระบบคํานวณ FreqCal แบบอัตโนมัติ')
                     ->collapsible()
                     ->schema([
-                        Grid::make(9)->schema([
+                        Grid::make(10)->schema([
                             DatePicker::make('cal_date')
-                                ->label('Cal Date')
+                                ->label('วันที่สอบเทียบ (Cal Date)')
                                 ->displayFormat('d/m/Y')
                                 ->required()
                                 ->live()
@@ -218,13 +223,14 @@ class ExternalCalResultResource extends Resource
                                     static::calculateFreqCal($set, $get);
                                 }),
 
-                            TextInput::make('last_cal_date_display')
-                                ->label('LastCalDate')
-                                ->disabled()
-                                ->dehydrated(false)
+                            DatePicker::make('last_cal_date')
+                                ->label('วันที่สอบเทียบเก่าล่าสุด (LastCalDate)')
+                                ->displayFormat('d/m/Y')
+                                ->live()
+                                ->afterStateUpdated(function (Set $set, Get $get) {
+                                    static::calculateFreqCal($set, $get);
+                                })
                                 ->columnSpan(2),
-
-
                         ]),
                     ]),
 
@@ -235,7 +241,7 @@ class ExternalCalResultResource extends Resource
                     ->description('กรอก ErrorMaxNow ระบบจะทําการดึง LastCal มาคํานวณ ErrorMax(Drift Rate) แบบอัตโนมัติ')
                     ->collapsible()
                     ->schema([
-                        Grid::make(6)->schema([
+                        Grid::make(10)->schema([
                             TextInput::make('calibration_data.error_max_now')
                                 ->label('ErrorMaxNow')
                                 ->numeric()
@@ -245,11 +251,16 @@ class ExternalCalResultResource extends Resource
                                 })
                                 ->columnSpan(2),
 
-                             TextInput::make('calibration_data.last_error_max') // Changed to calibration_data.last_error_max
+                             TextInput::make('calibration_data.last_error_max')
                                 ->label('LastErrorMax')
-                                ->disabled()
-                                ->dehydrated() // Changed from dehydrated(false)
-                                ->columnSpan(1),
+                                ->numeric()
+                                ->prefix('-')
+                                ->live(onBlur: true)
+                                ->afterStateUpdated(function (Set $set, Get $get) {
+                                    static::calculateDriftRate($set, $get);
+                                })
+                                ->dehydrated()
+                                ->columnSpan(2),
 
                              TextInput::make('calibration_data.freq_cal') // Changed to calibration_data.freq_cal
                                 ->label('FreqCal')
@@ -261,7 +272,7 @@ class ExternalCalResultResource extends Resource
                                 })
                                 ->formatStateUsing(fn ($state) => $state ? number_format(floatval($state), 2, '.', '') : null)
                                 ->dehydrateStateUsing(fn ($state, Get $get) => $get('freq_cal_raw2') ? floatval($get('freq_cal_raw2')) : $state)
-                                ->columnSpan(1)
+                                ->columnSpan(2)
                                 ->extraInputAttributes(fn (Get $get) => [
                                     'data-full-value' => $get('freq_cal_raw2') ? number_format(floatval($get('freq_cal_raw2')), 6, '.', '') : null,
                                     'x-data' => '{}',
@@ -438,7 +449,7 @@ class ExternalCalResultResource extends Resource
                                     }),
 
                                     TextInput::make('index')
-                                        ->label('Index')
+                                        ->label('จํานวนปี Index')
                                         ->disabled()
                                         ->dehydrated()
                                         ->afterStateHydrated(function ($component, $state, Set $set) {
@@ -476,12 +487,12 @@ class ExternalCalResultResource extends Resource
                     ]),
 
                 // Section 5: ผลการคำนวณ
-                Section::make('ผลการคำนวณ & สรุปผล (Conclusion)')
+                Section::make('ผลการคำนวณ (Results)')
                     ->collapsible()
                     ->schema([
-                        Grid::make(6)->schema([
+                        Grid::make(10)->schema([
                             TextInput::make('calibration_data.index_combined')
-                                ->label('Index (รวม)')
+                                ->label('จํานวนปีที่ตํ่าสุด (Index)')
                                 ->disabled()
                                 ->dehydrated()
                                 ->afterStateHydrated(function ($component, $state, Set $set) {
@@ -510,7 +521,7 @@ class ExternalCalResultResource extends Resource
                             Hidden::make('index_combined_raw'),
 
                             TextInput::make('calibration_data.new_index')
-                                ->label('NewIndex')
+                                ->label('จํานวนปีใหม่ (NewIndex)')
                                 ->disabled()
                                 ->dehydrated()
                                 ->afterStateHydrated(function ($component, $state, Set $set) {
@@ -539,7 +550,7 @@ class ExternalCalResultResource extends Resource
                             Hidden::make('new_index_raw'),
 
                             TextInput::make('calibration_data.amount_day')
-                                ->label('AmountDay')
+                                ->label('จํานวนวัน (AmountDay)')
                                 ->disabled()
                                 ->dehydrated()
                                 ->suffix('วัน')
@@ -568,10 +579,13 @@ class ExternalCalResultResource extends Resource
                             
                             Hidden::make('amount_day_raw'),
                         ]),
-
-                        Grid::make(6)->schema([
+                    ]),
+                Section::make('สรุปผล (Conclusion)')
+                    ->collapsible()
+                    ->schema([
+                        Grid::make(10)->schema([
                             Select::make('result_status')
-                                ->label('Result')
+                                ->label('ผลการสอบเทียบ (Status)')
                                 ->options([
                                     'Pass' => 'Pass',
                                     'Reject' => 'Reject',
@@ -580,20 +594,18 @@ class ExternalCalResultResource extends Resource
                                 ->columnSpan(2),
 
                             DatePicker::make('next_cal_date')
-                                ->label('Next Cal')
+                                ->label('วันครบกำหนดครั้งถัดไป (Next Cal)')
                                 ->displayFormat('d/m/Y')
-                                ->native(false)
                                 ->columnSpan(2),
-                        ]),
 
-                        Textarea::make('remark')
+                            Textarea::make('remark')
                             ->label('Remark')
-                            ->rows(2)
                             ->columnSpanFull(),
+                        ]), 
                     ]),
-
                 // Section 6: Certificate
                 Section::make('Certificate')
+                    ->description('อัพโหลดไฟล์ ขนาดไม่เกิน 10MB')
                     ->collapsible()
                     ->schema([
                         FileUpload::make('certificate_file')
@@ -725,12 +737,27 @@ class ExternalCalResultResource extends Resource
                     ->limit(20),
             ])
             ->filters([
+                Tables\Filters\Filter::make('cal_date')
+                    ->form([
+                        Forms\Components\DatePicker::make('from')
+                            ->label('จากวันที่'),
+                        Forms\Components\DatePicker::make('until')
+                            ->label('ถึงวันที่'),
+                    ])
+                    ->columns(2)
+                    ->columnSpan(2)
+                    ->query(function (\Illuminate\Database\Eloquent\Builder $query, array $data): \Illuminate\Database\Eloquent\Builder {
+                        return $query
+                            ->when($data['from'], fn ($q, $date) => $q->whereDate('cal_date', '>=', $date))
+                            ->when($data['until'], fn ($q, $date) => $q->whereDate('cal_date', '<=', $date));
+                    }),    
                 Tables\Filters\SelectFilter::make('result_status')
-                    ->label('ผลการสอบเทียบ')
+                    ->label('ผลการ Cal')
                     ->options([
                         'Pass' => 'Pass',
                         'Reject' => 'Reject',
-                    ]),
+                    ])
+                    ->native(false),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()->color('gray'),

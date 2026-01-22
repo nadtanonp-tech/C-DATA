@@ -117,8 +117,11 @@ class EditExternalCalResult extends EditRecord
             $purchasing = PurchasingRecord::find($data['purchasing_record_id']);
             if ($purchasing) {
                 $data['purchasing_cal_place'] = $purchasing->cal_place;
-                $data['purchasing_net_price'] = $purchasing->net_price;
                 $data['purchasing_send_date'] = $purchasing->send_date;
+                // ถ้ายังไม่มี price ให้ดึงจาก purchasing_records.net_price
+                if (empty($data['price']) && !empty($purchasing->net_price)) {
+                    $data['price'] = $purchasing->net_price;
+                }
             }
         }
         
@@ -132,15 +135,15 @@ class EditExternalCalResult extends EditRecord
     protected function mutateFormDataBeforeSave(array $data): array
     {
         // Store purchasing data temporarily for afterSave
+        // 🔥 ใช้ price จาก calibration_logs แทน purchasing_net_price
         $this->purchasingData = [
             'cal_place' => $data['purchasing_cal_place'] ?? null,
-            'net_price' => $data['purchasing_net_price'] ?? null,
+            'net_price' => $data['price'] ?? null, // Sync price to purchasing_records.net_price
             'send_date' => $data['purchasing_send_date'] ?? null,
         ];
         
         // Remove temporary fields that don't belong to calibration_logs table
         unset($data['purchasing_cal_place']);
-        unset($data['purchasing_net_price']);
         unset($data['purchasing_send_date']);
         
         return $data;
@@ -177,7 +180,7 @@ class EditExternalCalResult extends EditRecord
     
     protected function getRedirectUrl(): string
     {
-        return $this->getResource()::getUrl('index');
+        return $this->getResource()::getUrl('view', ['record' => $this->record]);
     }
 }
 

@@ -22,15 +22,15 @@ use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Set;
 use Filament\Forms\Get;
 
+
 class ExternalPurchasingResource extends Resource
 {
     protected static ?string $model = PurchasingRecord::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-shopping-cart';
     protected static ?string $navigationLabel = 'รายการส่งสอบเทียบ (In External)';
-    protected static ?string $modelLabel = 'รายการส่งสอบเทียบ';
-    protected static ?string $pluralModelLabel = 'รายการส่งสอบเทียบ';
-    protected static ?string $navigationGroup = 'สอบเทียบภายนอก (External)';
+    protected static ?string $modelLabel = 'In External';
+    protected static ?string $pluralModelLabel = 'In External';
     protected static ?int $navigationSort = 1;
 
     public static function getEloquentQuery(): Builder

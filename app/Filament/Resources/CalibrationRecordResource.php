@@ -10,10 +10,12 @@ use Filament\Forms\Form;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Set;
 use Filament\Forms\Get;
 use Filament\Resources\Resource;
@@ -30,9 +32,9 @@ class CalibrationRecordResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
     protected static ?string $navigationLabel = 'Instrument Calibration';
     protected static ?string $modelLabel = 'Instrument Calibration';
-    protected static ?string $navigationGroup = 'Instrument Cal Report & Data';
+    protected static ?string $navigationGroup = 'สอบเทียบภายใน (Internal)';
     protected static ?string $cluster = CalibrationReport::class; 
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 2;
     protected static ?string $slug = 'instrument-calibration';
 
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
@@ -120,6 +122,22 @@ class CalibrationRecordResource extends Resource
 
             Section::make('สรุปผล (Conclusion)')
                 ->schema([self::getConclusionSchema()]),
+
+            // 🔥 Certificate PDF Upload Section
+            Section::make('Certificate')
+                ->description('อัพโหลดไฟล์ ขนาดไม่เกิน 10MB')
+                ->collapsible()
+                ->schema([
+                    FileUpload::make('certificate_file')
+                        ->label('อัพโหลด Certificate PDF')
+                        ->disk('public')
+                        ->directory('calibration-certificates')
+                        ->acceptedFileTypes(['application/pdf'])
+                        ->maxSize(10240)
+                        ->downloadable()
+                        ->openable()
+                        ->columnSpanFull(),
+                ]),
         ];
     }
 
@@ -149,7 +167,7 @@ class CalibrationRecordResource extends Resource
                     }),
 
                 DatePicker::make('cal_date')
-                    ->label('วันที่สอบเทียบ')
+                    ->label('วันที่สอบเทียบ (Cal Date)')
                     ->default(now())
                     ->required()
                     ->reactive()
@@ -681,10 +699,20 @@ class CalibrationRecordResource extends Resource
                             ->send();
                     }
                 }),
-            TextInput::make('remark')
+            
+            TextInput::make('price')
+                            ->label('ราคาสอบเทียบ (บาท)')
+                            ->numeric()
+                            ->prefix('฿')
+                            ->placeholder('0.00')
+                            ->step(0.01)
+                            ->default(0),
+            
+            Textarea::make('remark')
                 ->label('หมายเหตุ (Remark)')
                 // 🔥 ขยายเป็น 2 columns เมื่อ next_cal_date หายไป (Reject/Level C)
-                ->columnSpan(fn (Get $get) => ($get('result_status') === 'Reject' || $get('cal_level') === 'C') ? 2 : 1),
+                ->columnSpanFull()
+                ->rows(3),
         ]);
     }
 

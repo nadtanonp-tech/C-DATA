@@ -21,4 +21,8 @@ class CreateInstrument extends CreateRecord
         return parent::getCreateAnotherFormAction()
             ->label('Save & save another');
     }
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('view', ['record' => $this->record]);
+    }
 }

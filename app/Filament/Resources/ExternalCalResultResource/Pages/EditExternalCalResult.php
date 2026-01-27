@@ -8,6 +8,7 @@ use App\Models\CalibrationRecord;
 use App\Models\PurchasingRecord;
 use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
+use App\Helpers\DashboardCacheHelper;
 
 class EditExternalCalResult extends EditRecord
 {
@@ -116,7 +117,7 @@ class EditExternalCalResult extends EditRecord
         if (!empty($data['purchasing_record_id'])) {
             $purchasing = PurchasingRecord::find($data['purchasing_record_id']);
             if ($purchasing) {
-                $data['purchasing_cal_place'] = $purchasing->cal_place;
+                $data['purchasing_cal_place'] = $purchasing->vendor_name;
                 $data['purchasing_send_date'] = $purchasing->send_date;
                 // ถ้ายังไม่มี price ให้ดึงจาก purchasing_records.net_price
                 if (empty($data['price']) && !empty($purchasing->net_price)) {
@@ -162,7 +163,7 @@ class EditExternalCalResult extends EditRecord
                 
                 // Sync purchasing fields if provided
                 if (!empty($this->purchasingData['cal_place'])) {
-                    $updateData['cal_place'] = $this->purchasingData['cal_place'];
+                    $updateData['vendor_name'] = $this->purchasingData['cal_place'];
                 }
                 if (!empty($this->purchasingData['net_price'])) {
                     $updateData['net_price'] = $this->purchasingData['net_price'];
@@ -176,11 +177,20 @@ class EditExternalCalResult extends EditRecord
                 }
             }
         }
+        
+        // 🔥 Clear Dashboard Cache
+        DashboardCacheHelper::clearDashboardCache();
     }
     
     protected function getRedirectUrl(): string
     {
         return $this->getResource()::getUrl('view', ['record' => $this->record]);
+    }
+
+    protected function afterDelete(): void
+    {
+        // 🔥 Clear Dashboard Cache
+        DashboardCacheHelper::clearDashboardCache();
     }
 }
 

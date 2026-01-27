@@ -5,6 +5,7 @@ namespace App\Filament\Resources\CalibrationRecordResource\Pages;
 use App\Filament\Resources\CalibrationRecordResource;
 use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
+use App\Helpers\DashboardCacheHelper;
 
 class EditCalibrationRecord extends EditRecord
 {
@@ -61,6 +62,11 @@ class EditCalibrationRecord extends EditRecord
     {
         // calibration_type จะถูกเก็บไว้ใน calibration_data อยู่แล้ว
         // ไม่ต้อง override เพราะจะใช้ค่าเดิมจากข้อมูลที่โหลดมา
+
+        // 🔥 Update Calibrator on Edit (ID)
+        if (auth()->check()) {
+            $data['cal_by'] = auth()->id();
+        }
         
         return $data;
     }
@@ -68,5 +74,17 @@ class EditCalibrationRecord extends EditRecord
     protected function getRedirectUrl(): string
     {
         return $this->getResource()::getUrl('view', ['record' => $this->record]);
+    }
+
+    protected function afterSave(): void
+    {
+        // 🔥 Clear Dashboard Cache
+        DashboardCacheHelper::clearDashboardCache();
+    }
+
+    protected function afterDelete(): void
+    {
+        // 🔥 Clear Dashboard Cache
+        DashboardCacheHelper::clearDashboardCache();
     }
 }

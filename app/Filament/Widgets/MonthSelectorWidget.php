@@ -25,14 +25,16 @@ class MonthSelectorWidget extends Widget implements HasForms
     public ?int $selectedMonth = null;
     public ?int $selectedYear = null;
     public ?string $selectedLevel = null;
-    public ?string $selectedCalPlace = null; // 🔥 เพิ่ม filter สถานที่สอบเทียบ
+    public ?string $selectedCalPlace = null;
+    public ?string $selectedType = null; // 🔥 filter type name
 
     public function mount(): void
     {
         $this->selectedMonth = (int) Carbon::now()->format('m');
         $this->selectedYear = (int) Carbon::now()->format('Y');
         $this->selectedLevel = 'all';
-        $this->selectedCalPlace = 'all'; // 🔥 Default = ทั้งหมด
+        $this->selectedCalPlace = 'all';
+        $this->selectedType = 'all'; // 🔥 Default = ทั้งหมด
     }
 
     public function resetFilters(): void
@@ -41,7 +43,8 @@ class MonthSelectorWidget extends Widget implements HasForms
         $this->selectedMonth = (int) Carbon::now()->format('m');
         $this->selectedYear = (int) Carbon::now()->format('Y');
         $this->selectedLevel = 'all';
-        $this->selectedCalPlace = 'all'; // 🔥 Reset cal_place
+        $this->selectedCalPlace = 'all';
+        $this->selectedType = 'all'; // 🔥 Reset type
         
         // 🔄 Clear all dashboard-related cache
         $this->clearDashboardCache();
@@ -74,6 +77,7 @@ class MonthSelectorWidget extends Widget implements HasForms
             "calibrated_count_{$month}_{$year}_{$level}",
             "overdue_count_{$month}_{$year}_{$level}",
             "year_options",
+            "type_options", // 🔥 Clear cache type options
             // Also clear for empty level
             "stats_counts_{$month}_{$year}_",
             "due_count_{$month}_{$year}_",
@@ -92,7 +96,8 @@ class MonthSelectorWidget extends Widget implements HasForms
             'month' => $this->selectedMonth,
             'year' => $this->selectedYear,
             'level' => $this->selectedLevel === 'all' ? null : $this->selectedLevel,
-            'cal_place' => $this->selectedCalPlace === 'all' ? null : $this->selectedCalPlace, // 🔥 เพิ่ม cal_place
+            'cal_place' => $this->selectedCalPlace === 'all' ? null : $this->selectedCalPlace,
+            'type_name' => $this->selectedType === 'all' ? null : $this->selectedType, // 🔥 ส่งค่า type_name
         ]);
     }
 
@@ -129,8 +134,25 @@ class MonthSelectorWidget extends Widget implements HasForms
                         'External' => 'ภายนอก (External)',
                     ])
                     ->default('all'),
+                Select::make('selectedType')
+                    ->label('ประเภทเครื่องมือ (Type)')
+                    ->native(false)
+                    ->searchable()
+                    ->options($this->getTypeOptions())
+                    ->default('all'),
             ])
             ->columns(5);
+    }
+
+    /**
+     * ดึงข้อมูล Type Name ทั้งหมด
+     */
+    public function getTypeOptions(): array
+    {
+        return \Illuminate\Support\Facades\Cache::remember('type_options', 3600, function () {
+            $types = \App\Models\ToolType::pluck('name', 'name')->toArray();
+            return ['all' => 'Type ทั้งหมด'] + $types;
+        });
     }
 
     /**

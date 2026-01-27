@@ -8,6 +8,9 @@
     <div 
         x-data="{ collapsed: true, hasLoaded: false }" 
         x-effect="if (!collapsed && !hasLoaded) { hasLoaded = true }"
+        @if ($pollingInterval = $this->getPollingInterval())
+            wire:poll.{{ $pollingInterval }}
+        @endif
         class="collapsible-table-container fi-wi-table rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10"
     >
         <div 

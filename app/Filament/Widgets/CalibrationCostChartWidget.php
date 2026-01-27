@@ -14,6 +14,9 @@ class CalibrationCostChartWidget extends ChartWidget
     
     protected static ?int $sort = 10;
     
+    // 🚀 Polling - Auto-refresh every 10 seconds
+    protected static ?string $pollingInterval = '10s';
+
     // 🚀 Lazy loading
     protected static bool $isLazy = true;
     
@@ -38,6 +41,10 @@ class CalibrationCostChartWidget extends ChartWidget
     public function updateFilters($data): void
     {
         $this->selectedYear = $data['year'] ?? $this->selectedYear;
+        // 🔥 Update filter from cal_place
+        // If cal_place is null (all), use 'comparison'
+        // If cal_place is set, use it (Internal/External)
+        $this->filter = $data['cal_place'] ?? 'comparison';
     }
 
     protected function getData(): array
@@ -70,18 +77,20 @@ class CalibrationCostChartWidget extends ChartWidget
                 [
                     'label' => "ภายใน (Internal) - ปี {$year}",
                     'data' => $internalData,
-                    'backgroundColor' => 'rgba(34, 197, 94, 0.8)',   // เขียว
-                    'borderColor' => 'rgba(34, 197, 94, 1)',
+                    'backgroundColor' => 'rgba(59, 130, 246, 0.8)',   // info (Blue)
+                    'borderColor' => 'rgba(59, 130, 246, 1)',
                     'borderWidth' => 1,
                     'borderRadius' => 4,
+                    'hidden' => $this->filter === 'External', // 🔥 ซ่อนถ้าเลือก External
                 ],
                 [
                     'label' => "ภายนอก (External) - ปี {$year}",
                     'data' => $externalData,
-                    'backgroundColor' => 'rgba(59, 130, 246, 0.8)',  // น้ำเงิน
-                    'borderColor' => 'rgba(59, 130, 246, 1)',
+                    'backgroundColor' => 'rgba(245, 158, 11, 0.8)',  // warning (Amber)
+                    'borderColor' => 'rgba(245, 158, 11, 1)',
                     'borderWidth' => 1,
                     'borderRadius' => 4,
+                    'hidden' => $this->filter === 'Internal', // 🔥 ซ่อนถ้าเลือก Internal
                 ],
             ],
             'labels' => $labels,
@@ -121,30 +130,9 @@ class CalibrationCostChartWidget extends ChartWidget
     protected function getOptions(): array
     {
         return [
-            'plugins' => [
-                'legend' => [
-                    'display' => true,
-                    'position' => 'top',
-                ],
-                'tooltip' => [
-                    'callbacks' => [
-                        'label' => "function(context) {
-                            return '฿' + context.raw.toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-                        }",
-                    ],
-                ],
-            ],
-            'scales' => [
-                'y' => [
-                    'beginAtZero' => true,
-                    'ticks' => [
-                        'callback' => "function(value) {
-                            return '฿' + value.toLocaleString('th-TH');
-                        }",
-                    ],
-                ],
-            ],
             'maintainAspectRatio' => false,
+            'responsive' => true,
+            'aspectRatio' => 1,
         ];
     }
     

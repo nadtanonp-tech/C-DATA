@@ -42,7 +42,7 @@ class ExternalCalResultResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->where('cal_place', 'External')
+            // ->whereIn('cal_place', ['External', 'ExternalCal'])
             ->with(['instrument.toolType', 'purchasingRecord']);
     }
 
@@ -52,7 +52,8 @@ class ExternalCalResultResource extends Resource
             ->schema([
                 // Hidden fields for purchasing link
                 Hidden::make('cal_place')->default('External'),
-                Hidden::make('purchasing_record_id'),
+                Hidden::make('purchasing_record_id')
+                    ->default(fn () => request()->query('purchasing_record_id')),
 
                 // 🔥 เพิ่ม hidden field สำหรับ calibration_type ทั้งใน column และ JSON
                 Hidden::make('calibration_type')->default('ExternalCal')->dehydrated(),
@@ -81,66 +82,32 @@ class ExternalCalResultResource extends Resource
                                 ->required()
                                 ->live()
                                 ->columnSpan(3)
-                                ->afterStateHydrated(function (Set $set, ?string $state) {
+                                ->afterStateHydrated(function (Set $set, ?string $state, $record) {
+                                    if ($record) return;
                                     self::updateInstrumentDetails($set, $state);
                                 })
                                 ->afterStateUpdated(function (Set $set, ?string $state) {
                                     self::updateInstrumentDetails($set, $state);
-                                    return;
+
                                     if ($state) {
-                                        $instrument = Instrument::with(['toolType', 'department'])->find($state);
-                                        if ($instrument) {
-                                            $set('instrument_name', $instrument->toolType?->name ?? '-');
-                                            $set('instrument_size', $instrument->toolType?->size ?? '-');
-                                            $set('instrument_serial', $instrument->serial_no ?? '-');
-                                            $set('instrument_department', $instrument->department?->name ?? '-');
-                                            
-                                            // ดึงข้อมูลจาก dimension_specs ของ ToolType และแปลงเป็นรูปแบบ Repeater
-                                            // สำหรับ External Cal ใช้เฉพาะ specs ที่มี criteria (cri_plus/cri_minus)
-                                            $dimensionSpecs = $instrument->toolType?->dimension_specs ?? [];
-                                            $ranges = [];
-                                            
-                                            foreach ($dimensionSpecs as $point) {
-                                                // แต่ละ point อาจมีหลาย specs
-                                                $specs = $point['specs'] ?? [];
-                                                foreach ($specs as $spec) {
-                                                    // กรองเฉพาะ specs ที่มี criteria (สำหรับ External Cal)
-                                                    // ถ้าไม่มี cri_plus และ cri_minus = เป็น spec สำหรับ Internal Cal
-                                                    if (empty($spec['cri_plus']) && empty($spec['cri_minus'])) {
-                                                        continue; // ข้าม specs ที่ไม่มี criteria
-                                                    }
-                                                    
-                                                    $ranges[] = [
-                                                        'range_name' => $point['point'] ?? '',
-                                                        'label' => $spec['label'] ?? '',
-                                                        'criteria_plus' => $spec['cri_plus'] ?? null,
-                                                        'criteria_minus' => $spec['cri_minus'] ?? null,
-                                                        'unit' => $spec['cri_unit'] ?? 'um',
-                                                        'error_max' => null, // ให้ user กรอกเอง
-                                                        'index' => null,
-                                                    ];
-                                                }
-                                            }
-                                            
-                                            // Pre-fill Repeater ด้วยข้อมูล Range/Criteria
-                                            $set('calibration_data.ranges', $ranges);
-                                            
-                                            // ดึงข้อมูลจาก Record ก่อนหน้า (ถ้ามี)
-                                            $lastRecord = \App\Models\CalibrationRecord::where('instrument_id', $state)
-                                                ->where('cal_place', 'External')
-                                                ->orderBy('cal_date', 'desc')
-                                                ->first();
-                                                
-                                            if ($lastRecord) {
-                                                $set('last_cal_date', $lastRecord->cal_date?->format('Y-m-d'));
-                                                $set('last_cal_date_display', $lastRecord->cal_date?->format('d/m/Y'));
-                                                $lastCalData = $lastRecord->calibration_data ?? [];
-                                                // ตรวจสอบหลายชื่อ field เพราะข้อมูลเก่าอาจใช้ ErrorMaxNow
-                                                $lastErrorMax = $lastCalData['error_max_now'] 
-                                                    ?? $lastCalData['ErrorMaxNow'] 
-                                                    ?? $lastCalData['drift_rate']
-                                                    ?? null;
-                                                $set('last_error_max', $lastErrorMax);
+                                        // Prioritize finding an ACTIVE purchasing record (Sent > Received > Pending)
+                                        // PostgreSQL compatible custom sort
+                                        $purchasing = \App\Models\PurchasingRecord::where('instrument_id', $state)
+                                            ->whereIn('status', ['Sent', 'Received', 'Pending']) 
+                                            ->orderByRaw("CASE 
+                                                WHEN status = 'Sent' THEN 1 
+                                                WHEN status = 'Received' THEN 2 
+                                                WHEN status = 'Pending' THEN 3 
+                                                ELSE 4 END")
+                                            ->latest()
+                                            ->first();
+                                        
+                                        if ($purchasing) {
+                                            $set('purchasing_record_id', $purchasing->id);
+                                            $set('purchasing_cal_place', $purchasing->vendor_name);
+                                            $set('purchasing_send_date', $purchasing->send_date?->format('Y-m-d'));
+                                            if ($purchasing->net_price) {
+                                                $set('price', $purchasing->net_price);
                                             }
                                         }
                                     }
@@ -184,11 +151,34 @@ class ExternalCalResultResource extends Resource
                             TextInput::make('purchasing_cal_place')
                                 ->label('สถานที่สอบเทียบจริง')
                                 ->placeholder('บริษัทที่ส่งไปจริง')
+                                ->afterStateHydrated(function (TextInput $component, $state, Get $get, Set $set) {
+                                    // ถ้ายังไม่มีค่า ให้ลองดึงจาก PurchasingRecord (vendor_name)
+                                    if (empty($state)) {
+                                        $purchasingId = $get('purchasing_record_id') ?? request()->query('purchasing_id') ?? request()->query('purchasing_record_id');
+                                        if ($purchasingId) {
+                                            $record = \App\Models\PurchasingRecord::find($purchasingId);
+                                            if ($record && $record->vendor_name) {
+                                                $set('purchasing_cal_place', $record->vendor_name);
+                                            }
+                                        }
+                                    }
+                                })
                                 ->columnSpan(2),
 
                             DatePicker::make('purchasing_send_date')
                                 ->label('วันที่ส่งจริง')
                                 ->displayFormat('d/m/Y')
+                                ->afterStateHydrated(function (DatePicker $component, $state, Get $get, Set $set) {
+                                    if (empty($state)) {
+                                        $purchasingId = $get('purchasing_record_id') ?? request()->query('purchasing_id') ?? request()->query('purchasing_record_id');
+                                        if ($purchasingId) {
+                                            $record = \App\Models\PurchasingRecord::find($purchasingId);
+                                            if ($record && $record->send_date) {
+                                                $set('purchasing_send_date', $record->send_date->format('Y-m-d'));
+                                            }
+                                        }
+                                    }
+                                })
                                 ->columnSpan(2),
 
                             TextInput::make('price')
@@ -198,6 +188,17 @@ class ExternalCalResultResource extends Resource
                                 ->placeholder('0.00')
                                 ->step(0.01)
                                 ->default(0)
+                                ->afterStateHydrated(function (TextInput $component, $state, Get $get, Set $set) {
+                                    if (empty($state) || $state == 0) { // Check if 0 or empty
+                                        $purchasingId = $get('purchasing_record_id') ?? request()->query('purchasing_id') ?? request()->query('purchasing_record_id');
+                                        if ($purchasingId) {
+                                            $record = \App\Models\PurchasingRecord::find($purchasingId);
+                                            if ($record && $record->net_price) {
+                                                $set('price', $record->net_price);
+                                            }
+                                        }
+                                    }
+                                })
                                 ->columnSpan(2),
                         ]),
 
@@ -228,9 +229,10 @@ class ExternalCalResultResource extends Resource
                                     static::calculateFreqCal($set, $get);
                                 }),
 
-                            DatePicker::make('last_cal_date')
+                            DatePicker::make('calibration_data.last_cal_date')
                                 ->label('วันที่สอบเทียบเก่าล่าสุด (LastCalDate)')
                                 ->displayFormat('d/m/Y')
+                                ->dehydrated()
                                 ->live()
                                 ->afterStateUpdated(function (Set $set, Get $get) {
                                     static::calculateFreqCal($set, $get);
@@ -275,27 +277,11 @@ class ExternalCalResultResource extends Resource
                                 ->afterStateHydrated(function ($component, $state, Set $set) {
                                     $set('freq_cal_raw2', $state);
                                 })
-                                ->formatStateUsing(fn ($state) => $state ? number_format(floatval($state), 2, '.', '') : null)
+                                ->formatStateUsing(fn ($state) => $state ? number_format(floatval($state), 6, '.', '') : null)
                                 ->dehydrateStateUsing(fn ($state, Get $get) => $get('freq_cal_raw2') ? floatval($get('freq_cal_raw2')) : $state)
-                                ->columnSpan(2)
-                                ->extraInputAttributes(fn (Get $get) => [
-                                    'data-full-value' => $get('freq_cal_raw2') ? number_format(floatval($get('freq_cal_raw2')), 6, '.', '') : null,
-                                    'x-data' => '{}',
-                                    'x-on:mouseover' => '
-                                        $el.dataset.original = $el.value; 
-                                        if($el.dataset.fullValue) {
-                                            $el.value = $el.dataset.fullValue; 
-                                        }
-                                    ',
-                                    'x-on:mouseout' => '
-                                        if($el.dataset.original) {
-                                            $el.value = $el.dataset.original;
-                                        }
-                                    ',
-                                    'style' => 'cursor: help;', 
-                                ]),
+                                ->columnSpan(2),
 
-                            Hidden::make('freq_cal_raw2'),
+                            Hidden::make('freq_cal_raw2')->dehydrated(false),
 
                             TextInput::make('calibration_data.drift_rate')
                                 ->label('ErrorMax (Drift Rate)')
@@ -305,26 +291,10 @@ class ExternalCalResultResource extends Resource
                                 ->afterStateHydrated(function ($component, $state, Set $set) {
                                     $set('drift_rate_raw', $state);
                                 })
-                                ->formatStateUsing(fn ($state) => $state ? number_format(floatval($state), 2, '.', '') : null)
-                                ->columnSpan(2)
-                                ->extraInputAttributes(fn (Get $get) => [
-                                    'data-full-value' => $get('drift_rate_raw') ? number_format(floatval($get('drift_rate_raw')), 6, '.', '') : null,
-                                    'x-data' => '{}',
-                                    'x-on:mouseover' => '
-                                        $el.dataset.original = $el.value; 
-                                        if($el.dataset.fullValue) {
-                                            $el.value = $el.dataset.fullValue; 
-                                        }
-                                    ',
-                                    'x-on:mouseout' => '
-                                        if($el.dataset.original) {
-                                            $el.value = $el.dataset.original;
-                                        }
-                                    ',
-                                    'style' => 'cursor: help;', 
-                                ]),
+                                ->formatStateUsing(fn ($state) => $state ? number_format(floatval($state), 6, '.', '') : null)
+                                ->columnSpan(2),
 
-                            Hidden::make('drift_rate_raw'),
+                            Hidden::make('drift_rate_raw')->dehydrated(false),
                         ]),
                     ]),
 
@@ -403,11 +373,11 @@ class ExternalCalResultResource extends Resource
                                             if ($errorMaxAbs != 0 && $criteria > 0) {
                                                 $index = ($criteria / $errorMaxAbs) * $freqCal;
                                                 $indices[] = $index;
-                                                $set("../../ranges.{$key}.index", (floor($index) == $index) ? number_format($index, 0, '.', '') : number_format($index, 2, '.', ''));
+                                                $set("../../ranges.{$key}.index", number_format($index, 6, '.', ''));
                                                 $set("../../ranges.{$key}.index_raw", round($index, 6)); // Raw: 6 decimals
                                             } else {
                                                 $indices[] = 5.00;
-                                                $set("../../ranges.{$key}.index", "5");
+                                                $set("../../ranges.{$key}.index", "5.000000");
                                                 $set("../../ranges.{$key}.index_raw", 5);
                                             }
                                             
@@ -424,7 +394,7 @@ class ExternalCalResultResource extends Resource
         
                                         // คำนวณ Index รวม
                                         $indexCombined = min($indices); 
-                                        $set('../../index_combined', (floor($indexCombined) == $indexCombined) ? number_format($indexCombined, 0, '.', '') : number_format($indexCombined, 2, '.', ''));
+                                        $set('../../index_combined', number_format($indexCombined, 6, '.', ''));
                                         $set('../../../index_combined_raw', round($indexCombined, 6)); // Raw: 6 decimals
 
                                         // คำนวณ NewIndex
@@ -434,12 +404,12 @@ class ExternalCalResultResource extends Resource
                                             $newIndex = $indexCombined;
                                         }
                                         $newIndex = max(0, $newIndex);
-                                        $set('../../new_index', (floor($newIndex) == $newIndex) ? number_format($newIndex, 0, '.', '') : number_format($newIndex, 2, '.', ''));
+                                        $set('../../new_index', number_format($newIndex, 6, '.', ''));
                                         $set('../../../new_index_raw', round($newIndex, 6)); // Raw: 6 decimals
 
                                         // คำนวณ AmountDay
                                         $amountDay = round($newIndex * 365, 2);
-                                        $set('../../amount_day', (floor($amountDay) == $amountDay) ? number_format($amountDay, 0, '.', '') : number_format($amountDay, 2, '.', ''));
+                                        $set('../../amount_day', number_format($amountDay, 6, '.', ''));
                                         $set('../../../amount_day_raw', round($amountDay, 6)); // Raw: 6 decimals
 
                                         // คำนวณ Next Cal
@@ -460,27 +430,11 @@ class ExternalCalResultResource extends Resource
                                         ->afterStateHydrated(function ($component, $state, Set $set) {
                                             $set('index_raw', $state);
                                         })
-                                        ->formatStateUsing(fn ($state) => $state ? number_format(floatval($state), 2, '.', '') : null)
+                                        ->formatStateUsing(fn ($state) => $state ? number_format(floatval($state), 6, '.', '') : null)
                                         ->dehydrateStateUsing(fn ($state, Get $get) => $get('index_raw') ? floatval($get('index_raw')) : $state)
-                                        ->columnSpan(1)
-                                        ->extraInputAttributes(fn (Get $get) => [
-                                            'data-full-value' => $get('index_raw') !== null ? (float)$get('index_raw') : null,
-                                            'x-data' => '{}',
-                                            'x-on:mouseover' => '
-                                                $el.dataset.original = $el.value; 
-                                                if($el.dataset.fullValue) {
-                                                    $el.value = $el.dataset.fullValue; 
-                                                }
-                                            ',
-                                            'x-on:mouseout' => '
-                                                if($el.dataset.original) {
-                                                    $el.value = $el.dataset.original;
-                                                }
-                                            ',
-                                            'style' => 'cursor: help;', 
-                                        ]),
+                                        ->columnSpan(1),
 
-                                    Hidden::make('index_raw'),
+                                    Hidden::make('index_raw')->dehydrated(false),
                                 ]),
                             ])
                             ->maxItems(5)
@@ -503,27 +457,11 @@ class ExternalCalResultResource extends Resource
                                 ->afterStateHydrated(function ($component, $state, Set $set) {
                                     $set('index_combined_raw', $state);
                                 })
-                                ->formatStateUsing(fn ($state) => $state ? number_format(floatval($state), 2, '.', '') : null)
+                                ->formatStateUsing(fn ($state) => $state ? number_format(floatval($state), 6, '.', '') : null)
                                 ->dehydrateStateUsing(fn ($state, Get $get) => $get('index_combined_raw') ? floatval($get('index_combined_raw')) : $state)
-                                ->columnSpan(2)
-                                ->extraInputAttributes(fn (Get $get) => [
-                                    'data-full-value' => $get('index_combined_raw') !== null ? (float)$get('index_combined_raw') : null,
-                                    'x-data' => '{}',
-                                    'x-on:mouseover' => '
-                                        $el.dataset.original = $el.value; 
-                                        if($el.dataset.fullValue) {
-                                            $el.value = $el.dataset.fullValue; 
-                                        }
-                                    ',
-                                    'x-on:mouseout' => '
-                                        if($el.dataset.original) {
-                                            $el.value = $el.dataset.original;
-                                        }
-                                    ',
-                                    'style' => 'cursor: help;', 
-                                ]),
+                                ->columnSpan(2),
 
-                            Hidden::make('index_combined_raw'),
+                            Hidden::make('index_combined_raw')->dehydrated(false),
 
                             TextInput::make('calibration_data.new_index')
                                 ->label('จํานวนปีใหม่ (NewIndex)')
@@ -532,27 +470,11 @@ class ExternalCalResultResource extends Resource
                                 ->afterStateHydrated(function ($component, $state, Set $set) {
                                     $set('new_index_raw', $state);
                                 })
-                                ->formatStateUsing(fn ($state) => $state ? number_format(floatval($state), 2, '.', '') : null)
+                                ->formatStateUsing(fn ($state) => $state ? number_format(floatval($state), 6, '.', '') : null)
                                 ->dehydrateStateUsing(fn ($state, Get $get) => $get('new_index_raw') ? floatval($get('new_index_raw')) : $state)
-                                ->columnSpan(2)
-                                ->extraInputAttributes(fn (Get $get) => [
-                                    'data-full-value' => $get('new_index_raw') !== null ? (float)$get('new_index_raw') : null,
-                                    'x-data' => '{}',
-                                    'x-on:mouseover' => '
-                                        $el.dataset.original = $el.value; 
-                                        if($el.dataset.fullValue) {
-                                            $el.value = $el.dataset.fullValue; 
-                                        }
-                                    ',
-                                    'x-on:mouseout' => '
-                                        if($el.dataset.original) {
-                                            $el.value = $el.dataset.original;
-                                        }
-                                    ',
-                                    'style' => 'cursor: help;', 
-                                ]),
+                                ->columnSpan(2),
 
-                            Hidden::make('new_index_raw'),
+                            Hidden::make('new_index_raw')->dehydrated(false),
 
                             TextInput::make('calibration_data.amount_day')
                                 ->label('จํานวนวัน (AmountDay)')
@@ -562,27 +484,11 @@ class ExternalCalResultResource extends Resource
                                 ->afterStateHydrated(function ($component, $state, Set $set) {
                                     $set('amount_day_raw', $state);
                                 })
-                                ->formatStateUsing(fn ($state) => $state ? ((floatval($state) == intval($state)) ? number_format(floatval($state), 0, '.', '') : number_format(floatval($state), 2, '.', '')) : null)
+                                ->formatStateUsing(fn ($state) => $state ? number_format(floatval($state), 6, '.', '') : null)
                                 ->dehydrateStateUsing(fn ($state, Get $get) => $get('amount_day_raw') ? floatval($get('amount_day_raw')) : $state)
-                                ->columnSpan(2)
-                                ->extraInputAttributes(fn (Get $get) => [
-                                    'data-full-value' => $get('amount_day_raw') !== null ? (float)$get('amount_day_raw') : null,
-                                    'x-data' => '{}',
-                                    'x-on:mouseover' => '
-                                        $el.dataset.original = $el.value; 
-                                        if($el.dataset.fullValue) {
-                                            $el.value = $el.dataset.fullValue; 
-                                        }
-                                    ',
-                                    'x-on:mouseout' => '
-                                        if($el.dataset.original) {
-                                            $el.value = $el.dataset.original;
-                                        }
-                                    ',
-                                    'style' => 'cursor: help;', 
-                                ]),
+                                ->columnSpan(2),
                             
-                            Hidden::make('amount_day_raw'),
+                            Hidden::make('amount_day_raw')->dehydrated(false),
                         ]),
                     ]),
                 Section::make('สรุปผล (Conclusion)')
@@ -632,7 +538,7 @@ class ExternalCalResultResource extends Resource
    protected static function calculateFreqCal(Set $set, Get $get): void
     {
         $calDate = $get('cal_date');
-        $lastCalDate = $get('last_cal_date');
+        $lastCalDate = $get('calibration_data.last_cal_date');
         
         if ($calDate && $lastCalDate) {
             try {
@@ -642,7 +548,7 @@ class ExternalCalResultResource extends Resource
                 
                 // แก้เป็น 6 ตำแหน่ง
                 $freqCal = round($diffDays / 365, 6); 
-                $set('calibration_data.freq_cal', round($freqCal, 2)); // UI: 2 decimals
+                $set('calibration_data.freq_cal', number_format($freqCal, 6, '.', '')); // UI: 6 decimals
                 $set('freq_cal_raw2', $freqCal); // Raw: 6 decimals
             } catch (\Exception $e) {
                 // If parsing fails, don't update
@@ -663,7 +569,7 @@ class ExternalCalResultResource extends Resource
         if ($freqCal > 0 && $errorMaxNow != 0) {
             $driftRate = ($errorMaxNow - $lastErrorMax) / $freqCal;
             // แก้เป็น 6 ตำแหน่ง
-            $set('calibration_data.drift_rate', number_format($driftRate, 2, '.', ''));
+            $set('calibration_data.drift_rate', number_format($driftRate, 6, '.', ''));
             $set('drift_rate_raw', round($driftRate, 6)); // Raw: 6 decimals
         }
         
@@ -680,13 +586,13 @@ class ExternalCalResultResource extends Resource
             $newIndex = max(0, $newIndex);
             // แก้เป็น 6 ตำแหน่ง
             // ถ้าเป็นจำนวนเต็ม ให้แสดงไม่มีทศนิยม ถ้ามีทศนิยมให้แสดง 2 ตำแหน่ง
-            $set('calibration_data.new_index', (floor($newIndex) == $newIndex) ? number_format($newIndex, 0, '.', '') : number_format($newIndex, 2, '.', ''));
+            $set('calibration_data.new_index', number_format($newIndex, 6, '.', ''));
             $set('new_index_raw', round($newIndex, 6)); // Raw: 6 decimals
             
             // AmountDay
             $amountDay = $newIndex * 365;
             // ถ้าเป็นจำนวนเต็ม ให้แสดงไม่มีทศนิยม ถ้ามีทศนิยมให้แสดง 2 ตำแหน่ง
-            $set('calibration_data.amount_day', (floor($amountDay) == $amountDay) ? number_format($amountDay, 0, '.', '') : number_format($amountDay, 2, '.', ''));
+            $set('calibration_data.amount_day', number_format($amountDay, 6, '.', ''));
             $set('amount_day_raw', round($amountDay, 6)); // Raw: 6 decimals
             
             // Next Cal Date (ใช้ int สำหรับการบวกวัน)
@@ -704,6 +610,8 @@ class ExternalCalResultResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            // 🔥 Strict Filter: Show only External records
+            ->modifyQueryUsing(fn (Builder $query) => $query->where('cal_place', 'External'))
             ->defaultSort('cal_date', 'desc')
             ->columns([
                 Tables\Columns\TextColumn::make('instrument.code_no')
@@ -727,7 +635,7 @@ class ExternalCalResultResource extends Resource
 
                 Tables\Columns\BadgeColumn::make('result_status')
                     ->label('Result')
-                    ->colors([
+                     ->colors([
                         'success' => 'Pass',
                         'danger' => 'Reject',
                     ]),
@@ -742,7 +650,20 @@ class ExternalCalResultResource extends Resource
                     ->limit(20),
             ])
             ->filters([
-                Tables\Filters\Filter::make('cal_date')
+                // 1. Calibration Type Filter (External Only)
+                // Tables\Filters\SelectFilter::make('calibration_type')
+                //     ->label('ประเภทการสอบเทียบ')
+                //     ->options([
+                //         'ExternalCal' => 'External',
+                //     ])
+                //     ->default('ExternalCal') // Optional: Default selected
+                //     ->query(function (Builder $query, array $data) {
+                //         return $query->where('cal_place', 'External'); // No-op really, but ensures safety
+                //     })
+                //     ->native(false),
+
+                 // 2. Date Range Filter
+                 Tables\Filters\Filter::make('cal_date')
                     ->form([
                         Forms\Components\DatePicker::make('from')
                             ->label('จากวันที่'),
@@ -751,11 +672,13 @@ class ExternalCalResultResource extends Resource
                     ])
                     ->columns(2)
                     ->columnSpan(2)
-                    ->query(function (\Illuminate\Database\Eloquent\Builder $query, array $data): \Illuminate\Database\Eloquent\Builder {
+                    ->query(function (Builder $query, array $data): Builder {
                         return $query
-                            ->when($data['from'], fn ($q, $date) => $q->whereDate('cal_date', '>=', $date))
-                            ->when($data['until'], fn ($q, $date) => $q->whereDate('cal_date', '<=', $date));
-                    }),    
+                            ->when($data['from'], fn (Builder $q, $date) => $q->whereDate('cal_date', '>=', $date))
+                            ->when($data['until'], fn (Builder $q, $date) => $q->whereDate('cal_date', '<=', $date));
+                    }),
+
+                // 3. Result Status Filter
                 Tables\Filters\SelectFilter::make('result_status')
                     ->label('ผลการ Cal')
                     ->options([
@@ -763,7 +686,17 @@ class ExternalCalResultResource extends Resource
                         'Reject' => 'Reject',
                     ])
                     ->native(false),
-            ])
+                
+                 // 4. Level Filter
+                 Tables\Filters\SelectFilter::make('cal_level')
+                    ->label('Level')
+                    ->options([
+                        'A' => 'Level A',
+                        'B' => 'Level B',
+                        'C' => 'Level C',
+                    ])
+                    ->native(false),
+            ], layout: Tables\Enums\FiltersLayout::AboveContentCollapsible)
             ->actions([
                 Tables\Actions\ViewAction::make()->color('gray'),
                 Tables\Actions\EditAction::make()->color('warning'),
@@ -832,11 +765,12 @@ class ExternalCalResultResource extends Resource
                 // ดึงข้อมูลจาก Record ก่อนหน้า (ถ้ามี)
                 $lastRecord = \App\Models\CalibrationRecord::where('instrument_id', $state)
                     ->where('cal_place', 'External')
+                    ->whereNotNull('cal_date')
                     ->orderBy('cal_date', 'desc')
                     ->first();
                     
                 if ($lastRecord) {
-                    $set('last_cal_date', $lastRecord->cal_date?->format('Y-m-d'));
+                    $set('calibration_data.last_cal_date', $lastRecord->cal_date?->format('Y-m-d'));
                     $set('last_cal_date_display', $lastRecord->cal_date?->format('d/m/Y'));
                     $lastCalData = $lastRecord->calibration_data ?? [];
                     // ตรวจสอบหลายชื่อ field เพราะข้อมูลเก่าอาจใช้ ErrorMaxNow
@@ -844,7 +778,7 @@ class ExternalCalResultResource extends Resource
                         ?? $lastCalData['ErrorMaxNow'] 
                         ?? $lastCalData['drift_rate']
                         ?? null;
-                    $set('last_error_max', $lastErrorMax);
+                    $set('calibration_data.last_error_max', $lastErrorMax);
                 }
             }
         } else {

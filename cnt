@@ -1,1 +1,0 @@
-\$row- . ': ' . number_format(\$row-, 2) . ' (count: ' . \$row- . ')' . PHP_EOL;

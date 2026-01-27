@@ -44,6 +44,10 @@ class AdminPanelProvider extends PanelProvider
                 \Filament\View\PanelsRenderHook::GLOBAL_SEARCH_AFTER,
                 fn (): string => \Illuminate\Support\Facades\Blade::render('@livewire(\'quick-create-menu\')'),
             )
+            ->renderHook(
+                \Filament\View\PanelsRenderHook::HEAD_END,
+                fn (): string => \Illuminate\Support\Facades\Blade::render('@vite(\'resources/js/filament-chart.js\')'),
+            )
             ->navigationGroups([
                 'Instrument & Types Data',
                 'Calibration Report',

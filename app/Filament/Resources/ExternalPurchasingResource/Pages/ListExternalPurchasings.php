@@ -8,13 +8,15 @@ use Filament\Resources\Pages\ListRecords;
 
 class ListExternalPurchasings extends ListRecords
 {
+    use \Filament\Pages\Concerns\ExposesTableToWidgets;
+    
     protected static string $resource = ExternalPurchasingResource::class;
 
     protected function getHeaderActions(): array
     {
         return [
             Actions\CreateAction::make()
-                ->label('สร้างใบส่งสอบเทียบ'),
+                ->label('New In External'),
         ];
     }
 
@@ -22,6 +24,7 @@ class ListExternalPurchasings extends ListRecords
     {
         return [
             ExternalPurchasingResource\Widgets\StatusWidget::class,
+            ExternalPurchasingResource\Widgets\PurchasingPriceComparisonChart::class,
         ];
     }
 }

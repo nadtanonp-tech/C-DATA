@@ -14,6 +14,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Grid;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\ImageColumn;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Fieldset;
@@ -309,15 +310,24 @@ class ToolTypeResource extends Resource
             ->paginationPageOptions([10, 25, 50, 100, 500])
             ->deferLoading()
             ->columns([
+
+                 ImageColumn::make('picture_path')
+                    ->label('Image')
+                    ->disk('public')
+                    ->circular()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('code_type')
                     ->label('ID Code Type')
                     ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->searchable()
                     ->weight('bold'),
 
                 TextColumn::make('name')
                     ->label('Type Name')
                     ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->searchable()
                     ->limit(50),
 
@@ -325,12 +335,36 @@ class ToolTypeResource extends Resource
                     ->label('จำนวนเครื่องมือ')
                     ->counts('instruments') // นับจำนวนลูกให้อัตโนมัติ!
                     ->badge()
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->color('info'),
 
-                TextColumn::make('updated_at')
-                    ->dateTime('d/m/Y H:i')
+                TextColumn::make('size')
+                    ->label('ขนาด')
+                    ->sortable()
+                    ->limit(30)
+                    ->tooltip(fn ($state) => $state)
+                    ->toggleable(isToggledHiddenByDefault: false),
+
+                TextColumn::make('reference_doc')
+                    ->label('เอกสารอ้างอิง')
+                    ->sortable()
+                    ->limit(30)
+                    ->tooltip(fn ($state) => $state)
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('drawing_no')
+                    ->label('Drawing No')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('remark')
+                    ->label('Remark')
+                    ->sortable()
+                    ->limit(30)
+                    ->tooltip(fn ($state) => $state)
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                
             ])
             ->filters([
                 Tables\Filters\TernaryFilter::make('has_instruments')

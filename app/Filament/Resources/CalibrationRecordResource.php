@@ -156,12 +156,15 @@ class CalibrationRecordResource extends Resource
                     ->getOptionLabelUsing(fn ($value) => self::getInstrumentLabel($value))
                     ->afterStateUpdated(fn ($state, Set $set, Get $get) => self::onInstrumentSelected($state, $set, $get))
                     ->default(request()->query('instrument_id'))
-                    ->afterStateHydrated(function ($state, Set $set, Get $get) {
+                    ->afterStateHydrated(function ($state, Set $set, Get $get, $record) {
+                        // 🔥 Fix: ถ้ามี record อยู่แล้ว (Edit/View) ไม่ต้องโหลด specs ใหม่
+                        // เพราะข้อมูลจะมาจาก database อยู่แล้ว
+                        if ($record) return;
+
+                        // Create mode: ถ้ามี instrument_id จาก URL ให้โหลด specs
                         $id = $state ?? request()->query('instrument_id');
                         if ($id) {
-                            if (!$state) {
-                                $set('instrument_id', $id);
-                            }
+                            $set('instrument_id', $id);
                             self::onInstrumentSelected($id, $set, $get);
                         }
                     }),
@@ -359,7 +362,7 @@ class CalibrationRecordResource extends Resource
         
         // 🔥 โหลด criteria จาก Instrument แทน ToolType
         $criteriaUnit = $instrument->criteria_unit ?? [];
-        $criteria1 = '0.00'; $criteria2 = '-0.00'; $unit = 'mm.';
+        $criteria1 = '0.000000'; $criteria2 = '-0.000000'; $unit = 'mm.';
         if (is_array($criteriaUnit)) {
             foreach ($criteriaUnit as $item) {
                 if (($item['index'] ?? 0) == 1) {
@@ -424,6 +427,78 @@ class CalibrationRecordResource extends Resource
         $set('calibration_data.readings_inner', $readingsInner);
         $set('calibration_data.readings_depth', $readingsDepth);
         $set('calibration_data.readings_parallelism', $readingsParallelism);
+
+        // 🔥 Fallback: ถ้าไม่มี Specs เลย (เช่น Vernier/Micrometer เก่า) ให้สร้าง Default Points
+        if (empty($readings)) {
+            $toolTypeName = $instrument->toolType->name ?? '';
+            $isVernierCaliper = stripos($toolTypeName, 'Vernier') !== false && stripos($toolTypeName, 'Caliper') !== false;
+            $isVernierDigital = stripos($toolTypeName, 'Digital') !== false;
+            $isMicrometer = stripos($toolTypeName, 'Micro') !== false;
+            $isDial = stripos($toolTypeName, 'Dial') !== false;
+            
+            // 1. Vernier Caliper / Digital (10 Points + Inner 3 + Depth 3)
+            if ($isVernierCaliper || $isVernierDigital) {
+                $points = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+                $innerPoints = ['A', 'B', 'C'];
+                $depthPoints = ['A', 'B', 'C'];
+                
+                $fallbackReadings = [];
+                foreach ($points as $p) {
+                    $fallbackReadings[] = [
+                        'point' => $p, 'cs_value' => null, 
+                        'specs' => [[
+                            'label' => 'S', 's_value' => null, 
+                            'measurements' => array_fill(0, 4, ['value' => null]), 
+                            'average' => null, 'sd' => null
+                        ]]
+                    ];
+                }
+                
+                $fallbackInner = [];
+                foreach ($innerPoints as $p) {
+                    $fallbackInner[] = [
+                        'point' => $p, 'cs_value' => null,
+                        'specs' => [[
+                            'label' => 'S', 's_value' => null,
+                            'measurements' => [['value' => null], ['value' => null]],
+                            'average' => null, 'sd' => null
+                        ]]
+                    ];
+                }
+                
+                $fallbackDepth = [];
+                foreach ($depthPoints as $p) {
+                    $fallbackDepth[] = [
+                        'point' => $p, 'cs_value' => null,
+                        'specs' => [[
+                            'label' => 'S', 's_value' => null,
+                            'measurements' => [['value' => null], ['value' => null]],
+                            'average' => null, 'sd' => null
+                        ]]
+                    ];
+                }
+
+                $set('calibration_data.readings', $fallbackReadings);
+                $set('calibration_data.readings_inner', $fallbackInner);
+                $set('calibration_data.readings_depth', $fallbackDepth);
+            }
+            // 2. Micrometer / Other Vernier / Dial (15 Points)
+            elseif ($isMicrometer || $isDial || stripos($toolTypeName, 'Vernier') !== false) {
+                 $points = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O'];
+                 $fallbackReadings = [];
+                 foreach ($points as $p) {
+                    $fallbackReadings[] = [
+                        'point' => $p, 'cs_value' => null, 
+                        'specs' => [[
+                            'label' => 'S', 's_value' => null, 
+                            'measurements' => array_fill(0, 4, ['value' => null]), 
+                            'average' => null, 'sd' => null
+                        ]]
+                    ];
+                }
+                $set('calibration_data.readings', $fallbackReadings);
+            }
+        }
         
         // 🔥 Pressure Gauge: สร้าง readings_pressure จาก dimension_specs
         $readingsPressure = [];
@@ -467,12 +542,7 @@ class CalibrationRecordResource extends Resource
         return Repeater::make($name)
             ->label('รายการจุดตรวจสอบ')
             ->itemLabel(fn (array $state): ?string => 'Point ' . ($state['point'] ?? '?'))
-            ->afterStateHydrated(function ($component, $state, Get $get, Set $set) {
-                $id = $get('instrument_id') ?? request()->query('instrument_id');
-                if ($id && empty($state)) {
-                    self::onInstrumentSelected($id, $set, $get);
-                }
-            })
+            ->itemLabel(fn (array $state): ?string => 'Point ' . ($state['point'] ?? '?'))
             ->schema([
                 Forms\Components\Hidden::make('point')->dehydrated(),
                 Forms\Components\Hidden::make('cs_value')->dehydrated(),
@@ -495,7 +565,7 @@ class CalibrationRecordResource extends Resource
                 ])),
             Repeater::make('measurements')->hiddenLabel()
                 ->schema([
-                    TextInput::make('value')->hiddenLabel()->numeric()->placeholder('0.00')
+                    TextInput::make('value')->hiddenLabel()->numeric()->placeholder('0.000000')
                         ->live(debounce: 500)
                         ->afterStateUpdated(fn ($state, Set $set, Get $get) => self::$calcMethod($get, $set))
                         ->extraAttributes(['style' => 'font-family: monospace; text-align: center; font-weight: 600;']),
@@ -544,23 +614,18 @@ class CalibrationRecordResource extends Resource
             Repeater::make('calibration_data.readings_parallelism')
                 ->label('รายการตรวจสอบความขนาน')
                 ->itemLabel(fn (array $state): ?string => 'S = ' . ($state['s_value'] ?? '?'))
-                ->afterStateHydrated(function ($component, $state, Get $get, Set $set) {
-                    $id = $get('instrument_id') ?? request()->query('instrument_id');
-                    if ($id && empty($state)) {
-                        self::onInstrumentSelected($id, $set, $get);
-                    }
-                })
+                ->itemLabel(fn (array $state): ?string => 'S = ' . ($state['s_value'] ?? '?'))
                 ->schema([
                     Forms\Components\Hidden::make('point')->dehydrated(),
                     Forms\Components\Hidden::make('s_value')->dehydrated(),
                     Grid::make(6)->schema([
-                        TextInput::make('position_start')->label('ตำแหน่งต้น')->numeric()->placeholder('0.00')->dehydrated()
+                        TextInput::make('position_start')->label('ตำแหน่งต้น')->numeric()->placeholder('0.000000')->dehydrated()
                             ->extraAttributes(['style' => 'font-family: monospace; text-align: center; font-weight: 600;']),
-                        TextInput::make('position_middle')->label('ตำแหน่งกลาง')->numeric()->placeholder('0.00')->dehydrated()
+                        TextInput::make('position_middle')->label('ตำแหน่งกลาง')->numeric()->placeholder('0.000000')->dehydrated()
                             ->extraAttributes(['style' => 'font-family: monospace; text-align: center; font-weight: 600;']),
-                        TextInput::make('position_end')->label('ตำแหน่งปลาย')->numeric()->placeholder('0.00')->dehydrated()
+                        TextInput::make('position_end')->label('ตำแหน่งปลาย')->numeric()->placeholder('0.000000')->dehydrated()
                             ->extraAttributes(['style' => 'font-family: monospace; text-align: center; font-weight: 600;']),
-                        TextInput::make('parallelism')->label('ความขนาน')->numeric()->placeholder('0.00')
+                        TextInput::make('parallelism')->label('ความขนาน')->numeric()->placeholder('0.000000')
                             ->live(debounce: 500)
                             ->afterStateUpdated(fn ($state, Set $set, Get $get) => self::calculateParallelism($get, $set))
                             ->dehydrated()->extraAttributes(['style' => 'font-family: monospace; font-weight: 700; text-align: center;']),
@@ -590,12 +655,6 @@ class CalibrationRecordResource extends Resource
         return Repeater::make('calibration_data.readings_pressure')
             ->label('รายการจุดตรวจสอบ')
             ->itemLabel(fn (array $state): ?string => 'Point: ' . ($state['s_value'] ?? '?'))
-            ->afterStateHydrated(function ($component, $state, Get $get, Set $set) {
-                $id = $get('instrument_id') ?? request()->query('instrument_id');
-                if ($id && empty($state)) {
-                    self::onInstrumentSelected($id, $set, $get);
-                }
-            })
             ->schema([
                 Grid::make(6)->schema([
                     TextInput::make('s_value')
@@ -606,7 +665,7 @@ class CalibrationRecordResource extends Resource
                     TextInput::make('master_value')
                         ->label('ค่าจาก Master')
                         ->numeric()
-                        ->placeholder('0.0000')
+                        ->placeholder('0.000000')
                         ->dehydrated()
                         ->live(debounce: 500)
                         ->afterStateUpdated(fn ($state, Set $set, Get $get) => self::calculatePressureGaugeResult($get, $set))
@@ -801,8 +860,8 @@ class CalibrationRecordResource extends Resource
                 }
             }
             
-            $set($basePath . "calibration_data.readings_pressure.{$index}.error", number_format($error, 4));
-            $set($basePath . "calibration_data.readings_pressure.{$index}.percent_error", number_format($percentError, 4));
+            $set($basePath . "calibration_data.readings_pressure.{$index}.error", number_format($error, 6));
+            $set($basePath . "calibration_data.readings_pressure.{$index}.percent_error", number_format($percentError, 6));
             $set($basePath . "calibration_data.readings_pressure.{$index}.Judgement", $judgement);
             $set($basePath . "calibration_data.readings_pressure.{$index}.level", $level);
             
@@ -916,9 +975,9 @@ class CalibrationRecordResource extends Resource
         }
         
         return [
-            'average' => number_format($average, 3),
-            'sd' => number_format($sd, 3),
-            'correction' => number_format($correction, 5),
+            'average' => number_format($average, 6),
+            'sd' => number_format($sd, 6),
+            'correction' => number_format($correction, 6),
             'judgement' => ($level === 'C') ? 'Reject' : 'Pass',
             'level' => $level,
         ];

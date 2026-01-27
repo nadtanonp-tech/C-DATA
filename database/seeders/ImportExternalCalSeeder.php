@@ -13,6 +13,8 @@ class ImportExternalCalSeeder extends Seeder
         // 1. ดึงข้อมูลจากตารางเก่า (ExternalCAL)
         // ตรวจสอบชื่อ connection ให้ถูกต้อง (ถ้าใช้ mysql_old ก็ใส่เพิ่มไป)
         $oldLogs = DB::table('ExternalCAL')->get();
+        
+        $this->command->info("Found " . $oldLogs->count() . " rows in ExternalCAL table.");
 
         $batchData = [];
         $batchSize = 50; // บันทึกทีละ 50 แถว
@@ -21,13 +23,17 @@ class ImportExternalCalSeeder extends Seeder
             
             // 2. หา ID เครื่องมือ
             // ใช้ trim เพื่อป้องกันวรรคหน้าหลังที่อาจทำให้หาไม่เจอ
+            $codeNo = trim($row->CodeNo);
             $instrument = DB::table('instruments')
-                            ->where('code_no', trim($row->CodeNo))
+                            ->where('code_no', $codeNo)
                             ->select('id')
                             ->first();
 
             // ถ้าไม่เจอเครื่องมือ ให้ข้ามแถวนี้ไป
-            if (!$instrument) continue;
+            if (!$instrument) {
+                $this->command->warn("Skipped: Instrument not found for CodeNo: {$codeNo}");
+                continue;
+            }
 
             // 3. ปั้น JSON สำหรับผลสอบเทียบภายนอก
             $calData = [
@@ -36,7 +42,7 @@ class ImportExternalCalSeeder extends Seeder
                 'cer_no' => $row->CerNo,
                 'place_cal' => $row->PlaceCAL ?? null,
                 'trace_place' => $row->TracePlace ?? null,
-                'price' => $row->Price_1 ?? null,
+                // 'price' => moved to column
                 
                 // ข้อมูล FreqCal และ LastCalDate/LastErrorMax
                 'freq_cal' => $row->FeqCal1 ?? null,
@@ -67,6 +73,8 @@ class ImportExternalCalSeeder extends Seeder
                 'calibration_data' => json_encode($calData, JSON_UNESCAPED_UNICODE),
                 'result_status' => $row->Result, 
                 'remark'        => $row->Remark,
+                'cal_level'     => '-',
+                'price'         => $row->Price_1 ?? null,
                 
                 'created_at'    => now(),
                 'updated_at'    => now(),

@@ -5,6 +5,7 @@ namespace App\Filament\Resources\ExternalCalResultResource\Pages;
 use App\Filament\Resources\ExternalCalResultResource;
 use App\Models\Instrument;
 use Filament\Resources\Pages\CreateRecord;
+use App\Helpers\DashboardCacheHelper;
 
 class CreateExternalCalResult extends CreateRecord
 {
@@ -14,41 +15,93 @@ class CreateExternalCalResult extends CreateRecord
     {
         parent::mount();
         
-        // รับค่าจาก URL parameters (จากปุ่ม "บันทึกผล" ใน ExternalPurchasingResource)
-        $purchasingId = request()->query('purchasing_id');
+        // รับค่าจาก URL parameters
+        $purchasingId = request()->query('purchasing_id') ?? request()->query('purchasing_record_id');
         $instrumentId = request()->query('instrument_id');
         
         $fillData = [];
         
+        // 🔥 Handle purchasing data (จากปุ่ม "บันทึกผล" ใน ExternalPurchasingResource)
         if ($purchasingId) {
             $fillData['purchasing_record_id'] = $purchasingId;
             $fillData['instrument_id'] = $instrumentId;
             
-            // 🔥 Pre-fill purchasing fields จาก PurchasingRecord
             $purchasing = \App\Models\PurchasingRecord::find($purchasingId);
             if ($purchasing) {
-                $fillData['purchasing_cal_place'] = $purchasing->cal_place;
-                $fillData['purchasing_send_date'] = $purchasing->send_date;
-                // ดึง net_price มาใส่ใน price field
+                $fillData['purchasing_cal_place'] = $purchasing->vendor_name;
+                $fillData['purchasing_send_date'] = $purchasing->send_date?->format('Y-m-d');
                 if (!empty($purchasing->net_price)) {
                     $fillData['price'] = $purchasing->net_price;
                 }
             }
         }
         
-        // ดึงข้อมูลจาก Record ก่อนหน้า (ถ้ามี)
+        // 🔥 Handle instrument data (จาก Dashboard Widget หรือ direct link)
         if ($instrumentId) {
+            $fillData['instrument_id'] = $instrumentId;
+            
+            $instrument = Instrument::with(['toolType', 'department'])->find($instrumentId);
+            if ($instrument) {
+                // Set display info
+                $fillData['instrument_name'] = $instrument->toolType?->name ?? '-';
+                $fillData['instrument_size'] = $instrument->toolType?->size ?? '-';
+                $fillData['instrument_serial'] = $instrument->serial_no ?? '-';
+                $fillData['instrument_department'] = $instrument->department?->name ?? '-';
+                
+                // ดึงข้อมูลจาก dimension_specs ของ ToolType และแปลงเป็นรูปแบบ Repeater
+                // สำหรับ External Cal ใช้เฉพาะ specs ที่มี criteria (cri_plus/cri_minus)
+                $dimensionSpecs = $instrument->toolType?->dimension_specs ?? [];
+                $ranges = [];
+                
+                foreach ($dimensionSpecs as $point) {
+                    $specs = $point['specs'] ?? [];
+                    foreach ($specs as $spec) {
+                        // กรองเฉพาะ specs ที่มี criteria (สำหรับ External Cal)
+                        if (empty($spec['cri_plus']) && empty($spec['cri_minus'])) {
+                            continue;
+                        }
+                        
+                        $ranges[] = [
+                            'range_name' => $point['point'] ?? '',
+                            'label' => $spec['label'] ?? '',
+                            'criteria_plus' => $spec['cri_plus'] ?? null,
+                            'criteria_minus' => $spec['cri_minus'] ?? null,
+                            'unit' => $spec['cri_unit'] ?? 'um',
+                            'error_max' => null,
+                            'index' => null,
+                        ];
+                    }
+                }
+                
+                // Initialize calibration_data if needed
+                if (!isset($fillData['calibration_data'])) {
+                    $fillData['calibration_data'] = [];
+                }
+                $fillData['calibration_data']['ranges'] = $ranges;
+                $fillData['calibration_data']['calibration_type'] = 'ExternalCal';
+            }
+            
+            // ดึงข้อมูลจาก Record ก่อนหน้า (ถ้ามี)
             $lastRecord = \App\Models\CalibrationRecord::where('instrument_id', $instrumentId)
                 ->where('cal_place', 'External')
                 ->orderBy('cal_date', 'desc')
                 ->first();
                 
             if ($lastRecord) {
-                $fillData['last_cal_date'] = $lastRecord->cal_date?->format('d/m/Y');
-                $fillData['last_error_max'] = $lastRecord->calibration_data['error_max_now'] ?? null;
+                $fillData['last_cal_date'] = $lastRecord->cal_date?->format('Y-m-d');
+                $lastCalData = $lastRecord->calibration_data ?? [];
+                $lastErrorMax = $lastCalData['error_max_now'] 
+                    ?? $lastCalData['ErrorMaxNow'] 
+                    ?? $lastCalData['drift_rate']
+                    ?? null;
+                if (!isset($fillData['calibration_data'])) {
+                    $fillData['calibration_data'] = [];
+                }
+                $fillData['calibration_data']['last_error_max'] = $lastErrorMax;
             }
         }
         
+        // 🔥 Fill the form with all collected data
         if (!empty($fillData)) {
             $this->form->fill($fillData);
         }
@@ -65,11 +118,13 @@ class CreateExternalCalResult extends CreateRecord
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        // 🔥 Force set cal_place to 'External' to prevent Model boot from defaulting to 'Internal'
+        $data['cal_place'] = 'External';
+
         // Store purchasing data temporarily for afterCreate
-        // 🔥 ใช้ price จาก calibration_logs แทน purchasing_net_price
         $this->purchasingData = [
             'cal_place' => $data['purchasing_cal_place'] ?? null,
-            'net_price' => $data['price'] ?? null, // Sync price to purchasing_records.net_price
+            'net_price' => $data['price'] ?? null,
             'send_date' => $data['purchasing_send_date'] ?? null,
         ];
         
@@ -96,7 +151,7 @@ class CreateExternalCalResult extends CreateRecord
                 
                 // Sync purchasing fields if provided
                 if (!empty($this->purchasingData['cal_place'])) {
-                    $updateData['cal_place'] = $this->purchasingData['cal_place'];
+                    $updateData['vendor_name'] = $this->purchasingData['cal_place'];
                 }
                 if (!empty($this->purchasingData['net_price'])) {
                     $updateData['net_price'] = $this->purchasingData['net_price'];
@@ -108,5 +163,8 @@ class CreateExternalCalResult extends CreateRecord
                 $purchasing->update($updateData);
             }
         }
+        
+        // 🔥 Clear Dashboard Cache
+        DashboardCacheHelper::clearDashboardCache();
     }
 }

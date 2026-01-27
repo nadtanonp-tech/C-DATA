@@ -24,6 +24,9 @@ class OverdueInstrumentsWidget extends BaseWidget
     
     protected static ?int $sort = 4;
 
+    // 🚀 Polling - Auto-refresh every 10 seconds
+    protected static ?string $pollingInterval = '10s';
+
     // 🚀 Lazy loading - ทำให้ widget โหลดแบบ async ไม่บล็อก navigation
     protected static bool $isLazy = true;
 
@@ -161,6 +164,14 @@ class OverdueInstrumentsWidget extends BaseWidget
                         'C' => 'danger',
                         default => 'gray',
                     }),
+                Tables\Columns\TextColumn::make('cal_place')
+                    ->label('สถานที่')
+                    ->badge()
+                    ->color(fn (?string $state): string => match ($state) {
+                        'Internal' => 'info',
+                        'External' => 'warning',
+                        default => 'gray',
+                    }),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('overdue_year')
@@ -257,7 +268,7 @@ class OverdueInstrumentsWidget extends BaseWidget
         $monthText = $month === 0 ? '(ทุกเดือน)' : Carbon::createFromDate(2024, $month, 1)->locale('th')->translatedFormat('F');
         $yearText = $year === 0 ? '(ทุกปี)' : 'ค.ศ. ' . $year;
         
-        return "เครื่องมือที่เลยกำหนดสอบเทียบ - {$monthText} {$yearText}{$levelText} ({$count} รายการ)";
+        return "เครื่องมือที่เลยกำหนดสอบเทียบ - {$monthText} {$yearText}{$levelText}";
     }
 
     /**
@@ -275,5 +286,9 @@ class OverdueInstrumentsWidget extends BaseWidget
         }
 
         return $options;
+    }
+    public function getPollingInterval(): ?string
+    {
+        return static::$pollingInterval;
     }
 }

@@ -267,45 +267,53 @@ class InstrumentResource extends Resource
             ->paginationPageOptions([10, 25, 50, 100, 500])
             ->deferLoading()
             ->columns([
-                // 1. รูปภาพเครื่องมือ
+
                 ImageColumn::make('instrument_image')
                     ->label('Image')
-                    ->disk('public') // ✅ ต้องตรงกับ FileUpload disk
+                    ->disk('public')
                     ->circular()
                     ->toggleable(isToggledHiddenByDefault: true),
-                // 2. รหัสทรัพย์สิน (ค้นหาได้ + ก๊อปปี้ได้)
+
                 TextColumn::make('code_no')
                     ->label('ID Code Instrument')
                     ->searchable()
                     ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->weight('bold')
                     ->copyable(),
 
-                // 3. ชื่อเครื่องมือ
                 TextColumn::make('toolType.name')
                     ->label('Type Name')
                     ->searchable()
-                    ->limit(30) // ตัดคำถ้ายาวเกิน
+                    ->limit(30)
+                    ->toggleable(isToggledHiddenByDefault: false) // ตัดคำถ้ายาวเกิน
                     ->tooltip(fn ($state) => $state), 
 
-                // 4. รหัสประเภทเครื่องมือ
                 TextColumn::make('toolType.code_type')
                     ->label('ID Code Type')
                     ->searchable()
-                    ->limit(30) // ตัดคำถ้ายาวเกิน
+                    ->limit(30)
+                    ->toggleable(isToggledHiddenByDefault: false) // ตัดคำถ้ายาวเกิน
                     ->tooltip(fn ($state) => $state), // เอาเมาส์ชี้ดูชื่อเต็ม
 
-                // 4. ประเภท (ดึงข้ามตารางจาก ToolType)
-                // TextColumn::make('toolType.name')
-                //     ->label('Type')
-                //     ->sortable()
-                //     ->searchable()
-                //     ->toggleable(), // ซ่อน/แสดงคอลัมน์ได้
+                TextColumn::make('serial_no')
+                    ->label('Serial No')
+                    ->searchable()
+                    ->limit(30)
+                    ->toggleable(isToggledHiddenByDefault: false) // ตัดคำถ้ายาวเกิน
+                    ->tooltip(fn ($state) => $state), // เอาเมาส์ชี้ดูชื่อเต็ม
 
-                // 5. สถานที่เก็บ (ใส่สีแยก)
+                TextColumn::make('asset_no')
+                    ->label('Asset No')
+                    ->searchable()
+                    ->limit(30)
+                    ->toggleable(isToggledHiddenByDefault: false) // ตัดคำถ้ายาวเกิน
+                    ->tooltip(fn ($state) => $state), // เอาเมาส์ชี้ดูชื่อเต็ม
+
                 TextColumn::make('equip_type')
                     ->label('Equip Type')
                     ->badge()
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->color(fn (string $state): string => match ($state) {
                         'Master' => 'warning',   // สีฟ้า
                         'Working' => 'info', // สีเหลือง
@@ -315,16 +323,17 @@ class InstrumentResource extends Resource
                 TextColumn::make('cal_place')
                     ->label('Location')
                     ->badge()
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->color(fn (string $state): string => match ($state) {
                         'Internal' => 'info',   // สีฟ้า
                         'External' => 'warning', // สีเหลือง
                         default => 'gray',
                     }),
 
-                // 6. สถานะการใช้งาน
                 TextColumn::make('status')
                     ->label('Status')
                     ->badge()
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->color(fn (string $state): string => match ($state) {
                     'ใช้งาน' => 'success', // สีเขียว
                     'Spare' => 'info', // สีเขียว
@@ -332,12 +341,77 @@ class InstrumentResource extends Resource
                     'ส่งซ่อม' => 'warning', // สีเหลือง
                     'สูญหาย' => 'danger',
                     default => 'gray',
+                    
                 }),
 
-                // 7. ผู้รับผิดชอบ
                 TextColumn::make('owner_name')
-                    ->label('Owner')
+                    ->label('Owner Name')
                     ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true), // ซ่อนไว้ก่อนเป็นค่าเริ่มต้น
+
+                TextColumn::make('owner_id')
+                    ->label('Owner ID')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true), // ซ่อนไว้ก่อนเป็นค่าเริ่มต้น
+
+                TextColumn::make('department.name')
+                    ->label('แผนก')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true), // ซ่อนไว้ก่อนเป็นค่าเริ่มต้น
+
+                TextColumn::make('brand')
+                    ->label('Brand')
+                    ->searchable()
+                    ->limit(30)
+                    ->tooltip(fn ($state) => $state)
+                    ->toggleable(isToggledHiddenByDefault: true), // ซ่อนไว้ก่อนเป็นค่าเริ่มต้น
+
+                TextColumn::make('maker')
+                    ->label('Maker')
+                    ->searchable()
+                    ->limit(30)
+                    ->tooltip(fn ($state) => $state)
+                    ->toggleable(isToggledHiddenByDefault: true), // ซ่อนไว้ก่อนเป็นค่าเริ่มต้น
+
+                TextColumn::make('price')
+                    ->label('Price')
+                    ->money('THB')
+                    ->searchable()
+                    ->limit(30)
+                    ->toggleable(isToggledHiddenByDefault: true), // ซ่อนไว้ก่อนเป็นค่าเริ่มต้น
+
+                TextColumn::make('machine_name')
+                    ->label('เครื่องจักร')
+                    ->searchable()
+                    ->limit(30)
+                    ->toggleable(isToggledHiddenByDefault: true), // ซ่อนไว้ก่อนเป็นค่าเริ่มต้น
+
+                TextColumn::make('receive_date')
+                    ->label('Receive Date')
+                    ->date()
+                    ->searchable()
+                    ->limit(30)
+                    ->toggleable(isToggledHiddenByDefault: true), // ซ่อนไว้ก่อนเป็นค่าเริ่มต้น
+
+                TextColumn::make('remark')
+                    ->label('Remark')
+                    ->searchable()
+                    ->limit(30)
+                    ->tooltip(fn ($state) => $state)
+                    ->toggleable(isToggledHiddenByDefault: true), // ซ่อนไว้ก่อนเป็นค่าเริ่มต้น
+
+                TextColumn::make('range_spec')
+                    ->label('Range การใช้งาน')
+                    ->searchable()
+                    ->limit(30)
+                    ->tooltip(fn ($state) => $state)
+                    ->toggleable(isToggledHiddenByDefault: true), // ซ่อนไว้ก่อนเป็นค่าเริ่มต้น
+
+                TextColumn::make('cal_freq_month')
+                    ->label('ความถี่')
+                    ->searchable()
+                    ->limit(30)
+                    ->tooltip(fn ($state) => $state)
                     ->toggleable(isToggledHiddenByDefault: true), // ซ่อนไว้ก่อนเป็นค่าเริ่มต้น
             ])
             ->filters([

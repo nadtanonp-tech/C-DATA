@@ -5,14 +5,23 @@ namespace App\Filament\Resources\GaugeCalibrationResource\Pages;
 use App\Filament\Resources\GaugeCalibrationResource;
 use Filament\Actions;
 use Filament\Resources\Pages\CreateRecord;
+use App\Helpers\DashboardCacheHelper;
 
 class CreateGaugeCalibration extends CreateRecord
 {
     protected static string $resource = GaugeCalibrationResource::class;
     
+    public ?string $type = null;
+
+    public function mount(): void
+    {
+        $this->type = request()->query('type');
+        parent::mount();
+    }
+
     public function getTitle(): string
     {
-        $type = request()->get('type', 'instrument');
+        $type = $this->type ?? request()->get('type', 'instrument');
         
         // Map type to display name
         $typeLabels = [
@@ -64,5 +73,11 @@ class CreateGaugeCalibration extends CreateRecord
         }
 
         return $data;
+    }
+
+    protected function afterCreate(): void
+    {
+        // 🔥 Clear Dashboard Cache
+        DashboardCacheHelper::clearDashboardCache();
     }
 }

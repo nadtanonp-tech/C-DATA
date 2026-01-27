@@ -5,6 +5,7 @@ namespace App\Filament\Resources\GaugeCalibrationResource\Pages;
 use App\Filament\Resources\GaugeCalibrationResource;
 use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
+use App\Helpers\DashboardCacheHelper;
 
 class EditGaugeCalibration extends EditRecord
 {
@@ -40,5 +41,17 @@ class EditGaugeCalibration extends EditRecord
     protected function getRedirectUrl(): string
     {
         return $this->getResource()::getUrl('view', ['record' => $this->record]);
+    }
+
+    protected function afterSave(): void
+    {
+        // 🔥 Clear Dashboard Cache
+        DashboardCacheHelper::clearDashboardCache();
+    }
+
+    protected function afterDelete(): void
+    {
+        // 🔥 Clear Dashboard Cache
+        DashboardCacheHelper::clearDashboardCache();
     }
 }

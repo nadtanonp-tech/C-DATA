@@ -23,6 +23,9 @@ class CalibratedThisMonthWidget extends BaseWidget
     
     protected static ?int $sort = 3;
 
+    // 🚀 Polling - Auto-refresh every 10 seconds
+    protected static ?string $pollingInterval = '10s';
+
     // 🚀 Lazy loading - ทำให้ widget โหลดแบบ async ไม่บล็อก navigation
     protected static bool $isLazy = true;
 
@@ -134,21 +137,58 @@ class CalibratedThisMonthWidget extends BaseWidget
                         'C' => 'danger',
                         default => 'gray',
                     }),
-                Tables\Columns\TextColumn::make('cal_by')
+                Tables\Columns\TextColumn::make('cal_place')
+                    ->label('สถานที่')
+                    ->badge()
+                    ->color(fn (?string $state): string => match ($state) {
+                        'Internal' => 'info',
+                        'External' => 'warning',
+                        default => 'gray',
+                    }),
+                Tables\Columns\TextColumn::make('user.name')
                     ->label('ผู้สอบเทียบ'),
             ])
-            // ->actions([
-            //     Tables\Actions\Action::make('calibrate')
-            //         ->label('ไปสอบเทียบ')
-            //         ->icon('heroicon-o-clipboard-document-check')
-            //         ->color('success')
-            //         ->url(fn ($record) => $this->getCalibrationUrl($record))
-            //         ->openUrlInNewTab(),
-            // ])
+            ->actions([
+                Tables\Actions\Action::make('edit')
+                    ->label('แก้ไข')
+                    ->icon('heroicon-o-pencil-square')
+                    ->color('warning')
+                    ->url(fn ($record) => $this->getEditUrl($record))
+                    ->openUrlInNewTab(),
+            ])
             ->defaultSort('cal_date', 'desc')
             ->emptyStateHeading('ไม่มีเครื่องมือที่สอบเทียบแล้วในช่วงที่เลือก')
             ->emptyStateDescription('ยังไม่มีการสอบเทียบเครื่องมือในช่วงเวลานี้')
             ->emptyStateIcon('heroicon-o-check-circle');
+    }
+
+    /**
+     * 🔗 Get the correct Edit URL based on record type
+     */
+    private function getEditUrl($record): string
+    {
+        $calibrationType = $record->calibration_data['calibration_type'] ?? $record->calibration_type ?? 'KGauge';
+        $calPlace = $record->cal_place ?? 'Internal';
+
+        // 1. External -> ExternalCalResultResource
+        if ($calPlace === 'External' || $calibrationType === 'ExternalCal') {
+             return route('filament.admin.calibration-report.resources.external-cal-results.edit', ['record' => $record->id]);
+        }
+
+        $gaugeTypes = [
+            'KGauge', 'SnapGauge', 'PlugGauge', 
+            'ThreadPlugGauge', 'SerrationPlugGauge', 
+            'ThreadRingGauge', 'SerrationRingGauge', 
+            'ThreadPlugGaugeFitWear'
+        ];
+
+        // 2. Gauge Type -> GaugeCalibrationResource
+        if (in_array($calibrationType, $gaugeTypes)) {
+            return route('filament.admin.calibration-report.resources.gauge-calibration.edit', ['record' => $record->id]);
+        }
+        
+        // 3. Instrument Type -> CalibrationRecordResource
+        return route('filament.admin.calibration-report.resources.instrument-calibration.edit', ['record' => $record->id]);
     }
 
     /**
@@ -234,6 +274,10 @@ class CalibratedThisMonthWidget extends BaseWidget
         $monthText = $month === 0 ? '(ทุกปี)' : Carbon::createFromDate(2024, $month, 1)->locale('th')->translatedFormat('F');
         $yearText = $year === 0 ? '(ทุกเดือน)' : 'ค.ศ. ' . $year;
         
-        return "เครื่องมือที่สอบเทียบแล้ว - {$monthText} {$yearText}{$levelText} ({$count} รายการ)";
+        return "เครื่องมือที่สอบเทียบแล้ว - {$monthText} {$yearText}{$levelText}";
+    }
+    public function getPollingInterval(): ?string
+    {
+        return static::$pollingInterval;
     }
 }

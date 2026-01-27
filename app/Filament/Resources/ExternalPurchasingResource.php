@@ -106,10 +106,16 @@ class ExternalPurchasingResource extends Resource
                                 ->formatStateUsing(fn ($state, ?PurchasingRecord $record) => $state ?? $record?->instrument?->serial_no)
                                 ->columnSpan(2),
 
-                            Select::make('requester')
+                            TextInput::make('instrument_department')
                                 ->label('แผนก')
-                                ->options(fn () => \App\Models\Department::pluck('name', 'name')->toArray())
-                                ->searchable()
+                                ->disabled()    
+                                ->dehydrated(false)
+                                ->formatStateUsing(function ($state, ?PurchasingRecord $record) {
+                                    if ($record) {
+                                        return $record->instrument?->department?->name ?? '-';
+                                    }
+                                    return $state;
+                                })
                                 ->columnSpan(2),
 
                             TextInput::make('quantity')
@@ -141,26 +147,25 @@ class ExternalPurchasingResource extends Resource
                         ]),
 
                         Grid::make(6)->schema([
-                            TextInput::make('vendor_name')
-                                ->label('สถาบันที่เสนอ')
-                                ->placeholder('บริษัทที่เสนอราคา')
+                            TextInput::make('requester')
+                                ->label('สถานที่สอบเทียบเสนอ')
                                 ->columnSpan(3),
 
                             TextInput::make('estimated_price')
-                                ->label('ราคาที่เสนอ')
+                                ->label('ราคาที่เสนอ (บาท)')
                                 ->numeric()
                                 ->prefix('฿')
                                 ->columnSpan(3),
                         ]),
 
                         Grid::make(6)->schema([
-                            TextInput::make('cal_place')
-                                ->label('สถานที่สอบเทียบ')
-                                ->placeholder('บริษัทที่ส่งไปจริง')
+
+                            TextInput::make('vendor_name')
+                                ->label('สถานที่สอบเทียบจริง')
                                 ->columnSpan(3),
 
                             TextInput::make('net_price')
-                                ->label('Price (ราคาจริง)')
+                                ->label('ราคาจริง (บาท)')
                                 ->numeric()
                                 ->prefix('฿')
                                 ->columnSpan(3),
@@ -183,6 +188,14 @@ class ExternalPurchasingResource extends Resource
                                 ])
                                 ->default('Draft')
                                 ->native(false)
+                                ->live()
+                                ->afterStateUpdated(function (Set $set, $state) {
+                                    if ($state === 'Received') {
+                                        $set('receive_date', now()->format('Y-m-d'));
+                                    } elseif ($state === 'Sent') {
+                                        $set('send_date', now()->format('Y-m-d'));
+                                    }
+                                })
                                 ->columnSpan(2),
 
                             DatePicker::make('send_date')
@@ -228,30 +241,43 @@ class ExternalPurchasingResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('pr_no')
                     ->label('PR No')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->searchable()
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('instrument.code_no')
                     ->label('Code No')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->searchable()
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('instrument.toolType.name')
                     ->label('Name')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->limit(25)
                     ->tooltip(fn ($state) => $state),
 
+                Tables\Columns\TextColumn::make('requester')
+                    ->label('สถานที่สอบเทียบเสนอ')
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->tooltip(fn ($state) => $state)
+                    ->limit(20),
+
                 Tables\Columns\TextColumn::make('vendor_name')
-                    ->label('สถานที่สอบเทียบ')
+                    ->label('สถานที่สอบเทียบจริง')
+                    ->toggleable(isToggledHiddenByDefault: false)
+                    ->tooltip(fn ($state) => $state)
                     ->limit(20),
 
                 Tables\Columns\TextColumn::make('send_date')
                     ->label('วันที่ส่ง')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->date('d/m/Y')
                     ->sortable(),
 
                 Tables\Columns\BadgeColumn::make('status')
                     ->label('Status')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->colors([
                         'gray' => 'Draft',
                         'warning' => 'Pending',
@@ -262,15 +288,60 @@ class ExternalPurchasingResource extends Resource
 
                 Tables\Columns\TextColumn::make('receive_date')
                     ->label('วันที่รับ')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->date('d/m/Y')
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('net_price')
-                    ->label('Price')
+                Tables\Columns\TextColumn::make('estimated_price')
+                    ->label('ราคาเสนอ')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->money('THB')
                     ->sortable(),
+
+                Tables\Columns\TextColumn::make('net_price')
+                    ->label('ราคาจริง')
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->money('THB')
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('remark')
+                    ->label('Remark')
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->limit(30)
+                    ->tooltip(fn($state) => $state),
             ])
             ->filters([
+                Tables\Filters\Filter::make('pr_date')
+                    ->label('วันที่ออก PR')
+                    ->form([
+                        Forms\Components\DatePicker::make('from')->label('ตั้งแต่วันที่'),
+                        Forms\Components\DatePicker::make('until')->label('ถึงวันที่'),
+                    ])
+                    ->columns(2)
+                    ->columnSpan(2)
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when(
+                                $data['from'],
+                                fn (Builder $query, $date): Builder => $query->whereDate('pr_date', '>=', $date),
+                            )
+                            ->when(
+                                $data['until'],
+                                fn (Builder $query, $date): Builder => $query->whereDate('pr_date', '<=', $date),
+                            );
+                    }),
+                Tables\Filters\SelectFilter::make('vendor_name')
+                    ->label('Vendor (บริษัท)')
+                    ->options(fn () => PurchasingRecord::query()->whereNotNull('vendor_name')->distinct()->pluck('vendor_name', 'vendor_name')->toArray())
+                    ->multiple()
+                    ->searchable(),
+                Tables\Filters\SelectFilter::make('instrument_id')
+                    ->label('Instrument (เครื่องมือ)')
+                    ->relationship('instrument', 'code_no', fn (Builder $query) => $query->where(function ($q) {
+                        $q->where('cal_place', 'External')->orWhere('cal_place', 'ExternalCal');
+                    }))
+                    ->multiple()
+                    ->searchable(),
                 Tables\Filters\SelectFilter::make('status')
                     ->label('สถานะ')
                     ->options([
@@ -280,7 +351,8 @@ class ExternalPurchasingResource extends Resource
                         'Received' => 'Received',
                         'Completed' => 'Completed',
                     ]),
-            ])
+            ], layout: Tables\Enums\FiltersLayout::AboveContentCollapsible)
+            ->filtersFormColumns(3)
             ->actions([
                 Tables\Actions\ViewAction::make()->color('gray'),
                 Tables\Actions\EditAction::make()->color('warning'),
@@ -319,10 +391,18 @@ class ExternalPurchasingResource extends Resource
                             'changed_by' => auth()->id(),
                         ]);
 
-                        $record->update([
+                        $updateData = [
                             'status' => $newStatus,
                             'remark' => $remark ?? $record->remark,
-                        ]);
+                        ];
+
+                        if ($newStatus === 'Sent' && empty($record->send_date)) {
+                            $updateData['send_date'] = now();
+                        } elseif ($newStatus === 'Received' && empty($record->receive_date)) {
+                            $updateData['receive_date'] = now();
+                        }
+
+                        $record->update($updateData);
                     })
                     ->requiresConfirmation()
                     ->modalHeading('ยืนยันการเปลี่ยนสถานะ')

@@ -14,4 +14,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('dashboard');
 });
 
+// Monthly Plan PDF Export
+Route::get('/monthly-plan/pdf', [\App\Http\Controllers\MonthlyPlanPdfController::class, 'generate'])
+    ->name('monthly-plan.pdf')
+    ->middleware('auth');
+
 require __DIR__.'/settings.php';

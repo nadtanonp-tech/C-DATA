@@ -164,12 +164,15 @@ class GaugeCalibrationResource extends Resource
                                         }
                                     })
                                     ->default(request()->query('instrument_id'))
-                                    ->afterStateHydrated(function ($state, Set $set, Get $get) {
+                                    ->afterStateHydrated(function ($state, Set $set, Get $get, $record) {
+                                        // 🔥 Fix: ถ้ามี record อยู่แล้ว (Edit/View) ไม่ต้องโหลด specs ใหม่
+                                        if ($record) return;
+
+                                        // Create mode: ถ้ามี instrument_id จาก URL ให้โหลด specs
                                         $id = $state ?? request()->query('instrument_id');
                                         if ($id) {
-                                            if (!$state) {
-                                                $set('instrument_id', $id);
-                                            }
+                                            $set('instrument_id', $id);
+                                            
                                             $calibrationType = $get('calibration_type') ?? request()->query('type') ?? 'KGauge';
                                             if ($calibrationType === 'PlugGauge') {
                                                 self::onInstrumentSelectedPlugGauge($id, $set, $get);
@@ -180,6 +183,7 @@ class GaugeCalibrationResource extends Resource
                                             } elseif ($calibrationType === 'ThreadPlugGaugeFitWear') {
                                                 self::onInstrumentSelectedThreadPlugGaugeFitWear($id, $set, $get);
                                             } else {
+                                                // Initialize default data only for new records
                                                 self::onInstrumentSelected($id, $set, $get);
                                             }
                                         }
@@ -358,7 +362,7 @@ class GaugeCalibrationResource extends Resource
                                             TextInput::make('value')
                                                 ->label('ค่าวัด')
                                                 ->numeric()
-                                                ->placeholder('0.000')
+                                                ->placeholder('0.000000')
                                                 ->live(debounce: 500)
                                                 ->afterStateUpdated(function ($state, Set $set, Get $get) {
                                                     self::calculateAverageReading($get, $set);
@@ -480,7 +484,7 @@ class GaugeCalibrationResource extends Resource
                                                 TextInput::make('value')
                                                     ->label('ค่า')
                                                     ->numeric()
-                                                    ->placeholder('0.000')
+                                                    ->placeholder('0.000000')
                                                     ->live(debounce: 500)
                                                     ->afterStateUpdated(function ($state, Set $set, Get $get) {
                                                         self::calculateSpecResultThreadPlugGauge($get, $set);
@@ -662,7 +666,7 @@ class GaugeCalibrationResource extends Resource
                                                 TextInput::make('value')
                                                     ->label('ค่า')
                                                     ->numeric()
-                                                    ->placeholder('0.000')
+                                                    ->placeholder('0.000000')
                                                     ->live(debounce: 500)
                                                     ->afterStateUpdated(function ($state, Set $set, Get $get) {
                                                         self::calculateSpecResultThreadPlugGaugeFitWear($get, $set);
@@ -794,7 +798,7 @@ class GaugeCalibrationResource extends Resource
                                     TextInput::make('reading')
                                         ->label('ค่าที่วัดได้')
                                         ->live(onBlur: true)
-                                        ->placeholder('0.000')
+                                        ->placeholder('0.000000')
                                         ->afterStateUpdated(function ($state, Set $set, Get $get) {
                                             $readings = $get('../../../calibration_data.readings') ?? [];
                                             $allFilled = true;
@@ -901,7 +905,7 @@ class GaugeCalibrationResource extends Resource
                                 ->label('ราคาสอบเทียบ (บาท)')
                                 ->numeric()
                                 ->prefix('฿')
-                                ->placeholder('0.00')
+                                ->placeholder('0.000000')
                                 ->step(0.01)
                                 ->default(0),
 
@@ -1027,7 +1031,7 @@ class GaugeCalibrationResource extends Resource
 
             $judgement = ($grade === 'C') ? 'Reject' : 'Pass';
 
-            $set("../../../calibration_data.readings.{$index}.error", number_format($error, 4));
+            $set("../../../calibration_data.readings.{$index}.error", number_format($error, 6));
             $set("../../../calibration_data.readings.{$index}.Judgement", $judgement);
             $set("../../../calibration_data.readings.{$index}.grade", $grade);
         }
@@ -1286,7 +1290,7 @@ class GaugeCalibrationResource extends Resource
             $formattedAvg = rtrim(rtrim(number_format($readingValue, 6, '.', ''), '0'), '.');
 
             $set("../../../../../calibration_data.readings.{$index}.reading", $formattedAvg);
-            $set("../../../../../calibration_data.readings.{$index}.error", number_format($error, 4));
+            $set("../../../../../calibration_data.readings.{$index}.error", number_format($error, 6));
             $set("../../../../../calibration_data.readings.{$index}.Judgement", $judgement);
             $set("../../../../../calibration_data.readings.{$index}.grade", $grade);
         }
@@ -1503,7 +1507,7 @@ class GaugeCalibrationResource extends Resource
 
                 // Set ค่าผลลัพธ์
                 $set("../../../../../../../calibration_data.readings.{$pointIndex}.specs.{$specIndex}.reading", $formattedAvg);
-                $set("../../../../../../../calibration_data.readings.{$pointIndex}.specs.{$specIndex}.error", number_format($error, 4));
+                $set("../../../../../../../calibration_data.readings.{$pointIndex}.specs.{$specIndex}.error", number_format($error, 6));
                 $set("../../../../../../../calibration_data.readings.{$pointIndex}.specs.{$specIndex}.Judgement", $judgement);
                 $set("../../../../../../../calibration_data.readings.{$pointIndex}.specs.{$specIndex}.grade", $grade);
             }

@@ -24,6 +24,9 @@ class DueThisMonthWidget extends BaseWidget
     
     protected static ?int $sort = 2;
 
+    // 🚀 Polling - Auto-refresh every 10 seconds
+    protected static ?string $pollingInterval = '10s';
+
     // 🚀 Lazy loading - ทำให้ widget โหลดแบบ async ไม่บล็อก navigation
     protected static bool $isLazy = true;
 
@@ -32,7 +35,8 @@ class DueThisMonthWidget extends BaseWidget
     public ?int $selectedMonth = null;
     public ?int $selectedYear = null;
     public ?string $selectedLevel = null;
-    public ?string $selectedCalPlace = null; // 🔥 filter สถานที่สอบเทียบ
+    public ?string $selectedCalPlace = null;
+    public ?string $selectedType = null; // 🔥 filter type name
 
     public function mount(): void
     {
@@ -40,6 +44,7 @@ class DueThisMonthWidget extends BaseWidget
         $this->selectedYear = (int) Carbon::now()->format('Y');
         $this->selectedLevel = null;
         $this->selectedCalPlace = null;
+        $this->selectedType = null;
     }
 
     #[On('filter-changed')]
@@ -48,14 +53,11 @@ class DueThisMonthWidget extends BaseWidget
         $this->selectedMonth = $data['month'] ?? $this->selectedMonth;
         $this->selectedYear = $data['year'] ?? $this->selectedYear;
         $this->selectedLevel = $data['level'] ?: null;
-        $this->selectedCalPlace = $data['cal_place'] ?? null; // 🔥 รับ cal_place
+        $this->selectedCalPlace = $data['cal_place'] ?? null;
+        $this->selectedType = $data['type_name'] ?? null; // 🔥 รับ type_name
         $this->resetTable();
     }
 
-    /**
-     * ดึง record IDs ที่ครบกำหนดและยังไม่ได้สอบเทียบ
-     * 🚀 ใช้ View แทน whereNotExists ที่ช้า
-     */
     public function getDueRecordIds($startDate, $endDate): array
     {
         return DB::table('latest_calibration_logs')
@@ -107,9 +109,15 @@ class DueThisMonthWidget extends BaseWidget
                     $query->where('cal_level', $widget->selectedLevel);
                 }
                 
-                // 🔥 กรองตาม cal_place
                 if ($widget->selectedCalPlace) {
                     $query->where('cal_place', $widget->selectedCalPlace);
+                }
+
+                // 🔥 กรองตาม Type Name (ผ่าน relationship)
+                if ($widget->selectedType) {
+                    $query->whereHas('instrument.toolType', function ($q) use ($widget) {
+                        $q->where('name', $widget->selectedType);
+                    });
                 }
                 
                 return $query;
@@ -153,6 +161,15 @@ class DueThisMonthWidget extends BaseWidget
                         'A' => 'success',
                         'B' => 'warning',
                         'C' => 'danger',
+                        default => 'gray',
+                    }),
+
+                Tables\Columns\TextColumn::make('cal_place')
+                    ->label('สถานที่')
+                    ->badge()
+                    ->color(fn (?string $state): string => match ($state) {
+                        'Internal' => 'info',
+                        'External' => 'warning',
                         default => 'gray',
                     }),
             ])
@@ -215,10 +232,11 @@ class DueThisMonthWidget extends BaseWidget
         $month = $this->selectedMonth ?? (int) Carbon::now()->format('m');
         $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
         $level = $this->selectedLevel ?? '';
-        $calPlace = $this->selectedCalPlace ?? ''; // 🔥 เพิ่ม cal_place
+        $calPlace = $this->selectedCalPlace ?? '';
+        $type = $this->selectedType ?? ''; // 🔥 เพิ่ม type
         
         // 🚀 ใช้ cache เพื่อไม่ต้อง query นับจำนวนทุกครั้ง (cache 30 นาที)
-        $cacheKey = "due_count_{$month}_{$year}_{$level}_{$calPlace}";
+        $cacheKey = "due_count_{$month}_{$year}_{$level}_{$calPlace}_{$type}";
         $count = Cache::remember($cacheKey, DASHBOARD_CACHE_TTL, function () use ($month, $year) {
             $currentYear = (int) Carbon::now()->format('Y');
             $minYear = $currentYear - 10;
@@ -246,6 +264,11 @@ class DueThisMonthWidget extends BaseWidget
             if ($this->selectedCalPlace) {
                 $query->where('cal_place', $this->selectedCalPlace);
             }
+            if ($this->selectedType) {
+                 $query->whereHas('instrument.toolType', function ($q) {
+                    $q->where('name', $this->selectedType);
+                });
+            }
             return $query->count();
         });
         
@@ -255,6 +278,10 @@ class DueThisMonthWidget extends BaseWidget
         $monthText = $month === 0 ? '(ทุกเดือน)' : Carbon::createFromDate(2024, $month, 1)->locale('th')->translatedFormat('F');
         $yearText = $year === 0 ? '(ทุกปี)' : 'ค.ศ. ' . $year;
         
-        return "เครื่องมือครบกำหนดสอบเทียบ - {$monthText} {$yearText}{$levelText} ({$count} รายการ)";
+        return "เครื่องมือครบกำหนดสอบเทียบ - {$monthText} {$yearText}{$levelText}";
+    }
+    public function getPollingInterval(): ?string
+    {
+        return static::$pollingInterval;
     }
 }

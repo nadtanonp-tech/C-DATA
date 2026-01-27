@@ -16,6 +16,9 @@ if (!defined('DASHBOARD_CACHE_TTL')) define('DASHBOARD_CACHE_TTL', 1800);
 class CalibrationStatsWidget extends BaseWidget
 {
     protected static ?int $sort = 0;
+
+    // 🚀 Polling - Auto-refresh every 10 seconds
+    protected static ?string $pollingInterval = '10s';
     
     // 🚀 Lazy loading - ทำให้ widget โหลดแบบ async ไม่บล็อค navigation
     protected static bool $isLazy = true;
@@ -212,6 +215,64 @@ class CalibrationStatsWidget extends BaseWidget
                 ->description("เครื่องมือที่เลยกำหนดสอบเทียบ{$levelLabel}")
                 ->descriptionIcon('heroicon-m-exclamation-triangle')
                 ->color($overdueCount > 0 ? 'danger' : 'success'),
+
+            $this->getCalibrationProgress(),
         ];
+    }
+
+    /**
+     * 🚀 Get Calibration Progress Stat (Simple)
+     */
+    private function getCalibrationProgress(): Stat
+    {
+        $month = $this->selectedMonth ?? (int) Carbon::now()->format('m');
+        $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
+
+        if ($month !== 0 && $year !== 0) {
+            [$startDate, $endDate] = $this->getDateRange();
+            
+            // Re-using logic for consistency
+            $planCount = DB::table('latest_calibration_logs')
+                ->whereBetween('next_cal_date', [$startDate, $endDate]);
+                
+            $calCountQuery = CalibrationRecord::whereBetween('cal_date', [$startDate, $endDate]);
+
+            if ($this->selectedLevel) {
+                 $planCount->where('cal_level', $this->selectedLevel);
+                 $calCountQuery->where('cal_level', $this->selectedLevel);
+            }
+            
+            if ($this->selectedCalPlace) {
+                $planCount->where('cal_place', $this->selectedCalPlace);
+                $calCountQuery->where('cal_place', $this->selectedCalPlace);
+            }
+            
+            $planCount = $planCount->count();
+            $calCount = $calCountQuery->count();
+
+        } else {
+             [$startDate, $endDate] = $this->getDateRange();
+             $planCount = $this->countDueRecords($startDate, $endDate);
+             $calCount = $this->countCalibrated($startDate, $endDate);
+        }
+
+        // Avoid division by zero
+        $percentage = $planCount > 0 ? round(($calCount / $planCount) * 100, 1) : 0;
+        
+        $color = 'primary';
+        $icon = 'heroicon-m-clock';
+        
+        if ($percentage >= 100) {
+            $color = 'success';
+            $icon = 'heroicon-m-check-badge';
+        } elseif ($percentage < 50) {
+            $color = 'warning'; // Or danger
+            $icon = 'heroicon-m-arrow-path';
+        }
+
+        return Stat::make('ความคืบหน้าแผน', $percentage . '%')
+            ->description("สอบเทียบแล้ว {$calCount} / {$planCount} รายการ")
+            ->descriptionIcon($icon)
+            ->color($color);
     }
 }

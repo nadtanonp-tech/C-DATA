@@ -32,6 +32,14 @@ class CalibrationRecord extends Model
     }
 
     /**
+     * 🔗 เชื่อมกับ User (ผู้สอบเทียบ)
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'cal_by');
+    }
+
+    /**
      * 🔗 เชื่อมกับ Purchasing Record (สำหรับ External Cal)
      */
     public function purchasingRecord(): BelongsTo

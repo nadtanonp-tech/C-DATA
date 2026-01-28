@@ -201,6 +201,7 @@ class CreateCalibrationRecord extends CreateRecord
             'cylinder_gauge' => 'Cylinder Gauge',
             'chamfer_gauge' => 'Chamfer Gauge',
             'pressure_gauge' => 'Pressure Gauge',
+            'E'
         ];
         
         $label = $typeLabels[$type] ?? 'Instrument';

@@ -21,16 +21,15 @@ class MonthlyPlanPdfController extends Controller
         $startDate = Carbon::parse($request->start_date);
         $endDate = Carbon::parse($request->end_date);
         $department = $request->department;
-        $toolTypeId = $request->tool_type_id;
+        $calibrationType = $request->calibration_type; // Changed from tool_type_id
+        $status = $request->status;
         $pdfType = $request->pdf_type;
 
         switch ($pdfType) {
             case 'monthly_report':
-                return $this->monthlyReport($startDate, $endDate, $department, $toolTypeId);
-            case 'cal_plan':
-                return $this->calPlan($startDate, $endDate, $department, $toolTypeId);
+                return $this->monthlyReport($startDate, $endDate, $department, $calibrationType, $status);
             case 'internal_plan':
-                return $this->internalPlan($startDate, $endDate, $department, $toolTypeId);
+                return $this->internalPlan($startDate, $endDate, $department, $calibrationType);
             default:
                 abort(404, 'Invalid PDF type');
         }
@@ -39,31 +38,35 @@ class MonthlyPlanPdfController extends Controller
     /**
      * PDF 1: Monthly Report (ใบสรุปผลสอบเทียบประจำเดือน)
      */
-    private function monthlyReport(Carbon $startDate, Carbon $endDate, $department, $toolTypeId)
+    private function monthlyReport(Carbon $startDate, Carbon $endDate, $department, $calibrationType, $status = null)
     {
-        $query = MonthlyPlan::with('toolType')
-            ->whereBetween('plan_month', [$startDate, $endDate]);
+        $query = MonthlyPlan::whereBetween('plan_month', [$startDate, $endDate]);
 
         if ($department && $department !== 'all') {
             $query->where('department', $department);
         }
 
-        if ($toolTypeId && $toolTypeId !== 'all') {
-            $query->where('tool_type_id', $toolTypeId);
+        if ($calibrationType && $calibrationType !== 'all') {
+            $query->where('calibration_type', $calibrationType);
         }
 
-        $data = $query->orderBy('department')->orderBy('tool_type_id')->get();
+        if ($status && $status !== 'all') {
+            $query->where('status', $status);
+        }
 
-        // Group by Tool Type
-        $grouped = $data->groupBy(fn ($item) => $item->toolType?->name ?? 'Unknown');
+        $data = $query->orderBy('department')->orderBy('calibration_type')->get();
+
+        // Group by Calibration Type
+        $grouped = $data->groupBy('calibration_type');
 
         $pdf = Pdf::loadView('pdf.monthly-report', [
             'data' => $grouped,
             'startDate' => $startDate,
             'endDate' => $endDate,
-            'department' => $department === 'all' ? 'ทั้งหมด' : $department,
+            'department' => $department === 'all' ? 'ทั้งหมด' : $department, // Pass logic, not raw string
+            'status' => $status === 'all' || !$status ? 'All' : $status, // Pass filter value for display
             'generatedAt' => now(),
-        ]);
+        ])->setOption('isPhpEnabled', true);
 
         return $pdf->stream('monthly-report-' . $startDate->format('Ym') . '.pdf');
     }
@@ -105,13 +108,12 @@ class MonthlyPlanPdfController extends Controller
     /**
      * PDF 3: Internal Calibration Plan (ใบให้หัวหน้าเซ็น)
      */
-    private function internalPlan(Carbon $startDate, Carbon $endDate, $department, $toolTypeId)
+    private function internalPlan(Carbon $startDate, Carbon $endDate, $department, $calibrationType)
     {
-        $query = MonthlyPlan::with('toolType')
-            ->whereBetween('plan_month', [$startDate, $endDate]);
+        $query = MonthlyPlan::whereBetween('plan_month', [$startDate, $endDate]);
 
-        if ($toolTypeId && $toolTypeId !== 'all') {
-            $query->where('tool_type_id', $toolTypeId);
+        if ($calibrationType && $calibrationType !== 'all') {
+            $query->where('calibration_type', $calibrationType);
         }
 
         $data = $query->orderBy('department')->orderBy('plan_month')->get();
@@ -126,7 +128,7 @@ class MonthlyPlanPdfController extends Controller
             'data' => $grouped,
             'startDate' => $startDate,
             'endDate' => $endDate,
-            'toolType' => $toolTypeId === 'all' ? 'ทั้งหมด' : ToolType::find($toolTypeId)?->name,
+            'calibrationType' => $calibrationType === 'all' ? 'ทั้งหมด' : $calibrationType,
             'generatedAt' => now(),
         ]);
 

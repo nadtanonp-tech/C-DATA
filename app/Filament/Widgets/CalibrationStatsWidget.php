@@ -81,15 +81,17 @@ class CalibrationStatsWidget extends BaseWidget
     private function countDueRecords($startDate, $endDate): int
     {
         $query = DB::table('latest_calibration_logs')
-            ->whereBetween('next_cal_date', [$startDate, $endDate]);
+            ->join('instruments', 'latest_calibration_logs.instrument_id', '=', 'instruments.id') // 🔥 Join instruments
+            ->whereBetween('latest_calibration_logs.next_cal_date', [$startDate, $endDate])
+            ->whereNotIn('instruments.status', ['ยกเลิก', 'สูญหาย', 'Inactive', 'Lost']); // 🔥 Filter Status
         
         if ($this->selectedLevel) {
-            $query->where('cal_level', $this->selectedLevel);
+            $query->where('latest_calibration_logs.cal_level', $this->selectedLevel);
         }
         
         // 🔥 กรองตาม cal_place
         if ($this->selectedCalPlace) {
-            $query->where('cal_place', $this->selectedCalPlace);
+            $query->where('latest_calibration_logs.cal_place', $this->selectedCalPlace);
         }
         
         return $query->count();
@@ -106,27 +108,29 @@ class CalibrationStatsWidget extends BaseWidget
         $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
         
         $query = DB::table('latest_calibration_logs')
-            ->where('next_cal_date', '<', $today);
+            ->join('instruments', 'latest_calibration_logs.instrument_id', '=', 'instruments.id') // 🔥 Join instruments
+            ->where('latest_calibration_logs.next_cal_date', '<', $today)
+            ->whereNotIn('instruments.status', ['ยกเลิก', 'สูญหาย', 'Inactive', 'Lost']); // 🔥 Filter Status
         
         // กรองตามเดือน/ปี
         if ($month === 0 && $year === 0) {
             // ทั้งหมด - ไม่ต้อง filter
         } elseif ($month === 0) {
-            $query->whereRaw('EXTRACT(YEAR FROM next_cal_date) = ?', [$year]);
+            $query->whereRaw('EXTRACT(YEAR FROM latest_calibration_logs.next_cal_date) = ?', [$year]);
         } elseif ($year === 0) {
-            $query->whereRaw('EXTRACT(MONTH FROM next_cal_date) = ?', [$month]);
+            $query->whereRaw('EXTRACT(MONTH FROM latest_calibration_logs.next_cal_date) = ?', [$month]);
         } else {
-            $query->whereRaw('EXTRACT(MONTH FROM next_cal_date) = ?', [$month])
-                  ->whereRaw('EXTRACT(YEAR FROM next_cal_date) = ?', [$year]);
+            $query->whereRaw('EXTRACT(MONTH FROM latest_calibration_logs.next_cal_date) = ?', [$month])
+                  ->whereRaw('EXTRACT(YEAR FROM latest_calibration_logs.next_cal_date) = ?', [$year]);
         }
         
         if ($this->selectedLevel) {
-            $query->where('cal_level', $this->selectedLevel);
+            $query->where('latest_calibration_logs.cal_level', $this->selectedLevel);
         }
         
         // 🔥 กรองตาม cal_place
         if ($this->selectedCalPlace) {
-            $query->where('cal_place', $this->selectedCalPlace);
+            $query->where('latest_calibration_logs.cal_place', $this->selectedCalPlace);
         }
         
         return $query->count();
@@ -137,7 +141,10 @@ class CalibrationStatsWidget extends BaseWidget
      */
     private function countCalibrated($startDate, $endDate): int
     {
-        $query = CalibrationRecord::whereBetween('cal_date', [$startDate, $endDate]);
+        $query = CalibrationRecord::whereBetween('cal_date', [$startDate, $endDate])
+            ->whereHas('instrument', function ($q) { // 🔥 Filter Status
+                $q->whereNotIn('status', ['ยกเลิก', 'สูญหาย', 'Inactive', 'Lost']);
+            });
         
         if ($this->selectedLevel) {
             $query->where('cal_level', $this->selectedLevel);
@@ -233,17 +240,22 @@ class CalibrationStatsWidget extends BaseWidget
             
             // Re-using logic for consistency
             $planCount = DB::table('latest_calibration_logs')
-                ->whereBetween('next_cal_date', [$startDate, $endDate]);
+                ->join('instruments', 'latest_calibration_logs.instrument_id', '=', 'instruments.id') // 🔥 Join
+                ->whereBetween('latest_calibration_logs.next_cal_date', [$startDate, $endDate])
+                ->whereNotIn('instruments.status', ['ยกเลิก', 'สูญหาย', 'Inactive', 'Lost']); // 🔥 Filter Logic
                 
-            $calCountQuery = CalibrationRecord::whereBetween('cal_date', [$startDate, $endDate]);
+            $calCountQuery = CalibrationRecord::whereBetween('cal_date', [$startDate, $endDate])
+                ->whereHas('instrument', function ($q) { // 🔥 Filter Logic
+                    $q->whereNotIn('status', ['ยกเลิก', 'สูญหาย', 'Inactive', 'Lost']);
+                });
 
             if ($this->selectedLevel) {
-                 $planCount->where('cal_level', $this->selectedLevel);
+                 $planCount->where('latest_calibration_logs.cal_level', $this->selectedLevel);
                  $calCountQuery->where('cal_level', $this->selectedLevel);
             }
             
             if ($this->selectedCalPlace) {
-                $planCount->where('cal_place', $this->selectedCalPlace);
+                $planCount->where('latest_calibration_logs.cal_place', $this->selectedCalPlace);
                 $calCountQuery->where('cal_place', $this->selectedCalPlace);
             }
             
@@ -252,8 +264,8 @@ class CalibrationStatsWidget extends BaseWidget
 
         } else {
              [$startDate, $endDate] = $this->getDateRange();
-             $planCount = $this->countDueRecords($startDate, $endDate);
-             $calCount = $this->countCalibrated($startDate, $endDate);
+             $planCount = $this->countDueRecords($startDate, $endDate); // Already filtered
+             $calCount = $this->countCalibrated($startDate, $endDate); // Already filtered
         }
 
         // Avoid division by zero

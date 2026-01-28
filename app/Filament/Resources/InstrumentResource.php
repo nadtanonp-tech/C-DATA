@@ -407,7 +407,7 @@ class InstrumentResource extends Resource
                     ->tooltip(fn ($state) => $state)
                     ->toggleable(isToggledHiddenByDefault: true), // ซ่อนไว้ก่อนเป็นค่าเริ่มต้น
 
-                TextColumn::make('cal_freq_month')
+                TextColumn::make('cal_freq_months')
                     ->label('ความถี่')
                     ->searchable()
                     ->limit(30)
@@ -537,7 +537,7 @@ class InstrumentResource extends Resource
                         $record->update([
                             'status' => $newStatus,
                         ]);
-                    })
+                    })  
                     // ข้อความยืนยันความปลอดภัย
                     ->requiresConfirmation()
                     ->modalHeading('ยืนยันการเปลี่ยนสถานะเครื่องมือ')

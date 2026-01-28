@@ -19,8 +19,10 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Textarea;
+use Filament\Notifications\Notification;
 use Filament\Tables\Actions\Action;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class MonthlyPlanResource extends Resource
@@ -38,7 +40,7 @@ class MonthlyPlanResource extends Resource
     {
         return $form
             ->schema([
-                Section::make('ข้อมูลแผนสอบเทียบ')
+                Section::make('ข้อมูลแผนสอบเทียบ') // 🟢 ส่วนที่ 1: ข้อมูลหลักของแผน (เดือน, ประเภท, แผนก)
                     ->schema([
                         Grid::make(3)->schema([
                             DatePicker::make('plan_month')
@@ -53,7 +55,6 @@ class MonthlyPlanResource extends Resource
                                 ->relationship('toolType', 'name')
                                 ->searchable()
                                 ->preload()
-                                ->required()
                                 ->columnSpan(1),
 
                             Select::make('department')
@@ -64,22 +65,29 @@ class MonthlyPlanResource extends Resource
                         ]),
 
                         Grid::make(3)->schema([
-                            TextInput::make('status')
+                            Select::make('status')
                                 ->label('สถานะ')
+                                ->options([
+                                    'Plan' => 'Plan',
+                                    'Completed' => 'Completed',
+                                    'Remain' => 'Remain',
+                                ])
                                 ->default('Plan')
+                                ->required()
                                 ->columnSpan(1),
                         ]),
                     ]),
 
-                Section::make('ยอดแผน/สอบเทียบ')
+                Section::make('ยอดแผน/สอบเทียบ') // 🟢 ส่วนที่ 2: ตัวเลขสรุป (เป้าหมาย vs ทำได้จริง)
                     ->schema([
                         Grid::make(3)->schema([
                             TextInput::make('plan_count')
                                 ->label('Plan (จำนวนที่ต้องสอบ)')
                                 ->numeric()
                                 ->default(0)
-                                ->live()
+                                ->live() // 🟢 สั่งให้ทำงานทันทีเมื่อแก้เลขเพื่อคำนวณ Remain
                                 ->afterStateUpdated(fn ($state, $set, $get) => 
+                                    // 🟢 คำนวณยอดคงเหลือทันที: Plan - Cal
                                     $set('remain_count', max(0, (int)$state - (int)$get('cal_count')))
                                 ),
 
@@ -101,7 +109,7 @@ class MonthlyPlanResource extends Resource
                         ]),
                     ]),
 
-                Section::make('Level (ผลการสอบเทียบ)')
+                Section::make('Level (ผลการสอบเทียบ)') // 🟢 ส่วนที่ 3: สรุปผล Level A/B/C
                     ->schema([
                         Grid::make(3)->schema([
                             TextInput::make('level_a')
@@ -139,83 +147,211 @@ class MonthlyPlanResource extends Resource
                 Tables\Columns\TextColumn::make('plan_month')
                     ->label('เดือน')
                     ->date('M Y')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('toolType.name')
+                Tables\Columns\TextColumn::make('calibration_type')
                     ->label('ประเภท')
+                    ->formatStateUsing(fn (string $state): string => \Illuminate\Support\Str::headline($state))
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->searchable()
-                    ->limit(20),
+                    ->sortable(),
 
                 Tables\Columns\TextColumn::make('department')
                     ->label('แผนก')
-                    ->searchable(),
+                    ->toggleable(isToggledHiddenByDefault: false)
+                    ->searchable()
+                    ->sortable(),
 
                 Tables\Columns\TextColumn::make('status')
                     ->label('สถานะ')
                     ->badge()
+                    ->toggleable(isToggledHiddenByDefault: false)
+                    ->getStateUsing(function ($record) {
+                        // 🟢 Auto Display: ถ้าเดือนเก่า ไม่เสร็จ -> Remain
+                        $planDate = \Carbon\Carbon::parse($record->plan_month);
+                        
+                        if ($planDate->endOfMonth()->isPast() && $record->status !== 'Completed') {
+                            return 'Remain';
+                        }
+                        
+                        return $record->status;
+                    })
                     ->color(fn (string $state): string => match ($state) {
                         'Plan' => 'warning',
                         'Completed' => 'success',
+                        'Remain' => 'danger',
                         default => 'gray',
                     }),
 
                 Tables\Columns\TextColumn::make('plan_count')
-                    ->label('Plan')
+                    ->label('Set/Pcs')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->alignCenter(),
 
                 Tables\Columns\TextColumn::make('cal_count')
                     ->label('Cal')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->alignCenter(),
-
-                Tables\Columns\TextColumn::make('cal_percent')
-                    ->label('% Cal')
-                    ->alignCenter()
-                    ->suffix('%'),
 
                 Tables\Columns\TextColumn::make('level_a')
                     ->label('A')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->alignCenter(),
 
                 Tables\Columns\TextColumn::make('level_b')
                     ->label('B')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->alignCenter(),
 
                 Tables\Columns\TextColumn::make('level_c')
                     ->label('C')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->alignCenter(),
 
                 Tables\Columns\TextColumn::make('remain_count')
                     ->label('Remain')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->alignCenter(),
+
+                Tables\Columns\TextColumn::make('remark')
+                    ->label('หมายเหตุ')
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->limit(30),
             ])
             ->filters([
+                // Filter by Year
+                Tables\Filters\SelectFilter::make('plan_year')
+                    ->label('ปี (Year)')
+                    ->options(function () {
+                        return \App\Models\MonthlyPlan::selectRaw('EXTRACT(YEAR FROM plan_month) as year')
+                            ->distinct()
+                            ->orderByDesc('year')
+                            ->pluck('year', 'year')
+                            ->toArray();
+                    })
+                    ->query(function ($query, array $data) {
+                        if (!empty($data['value'])) {
+                            $query->whereYear('plan_month', $data['value']);
+                        }
+                    })
+                    ->native(false),
+
+                // Filter by Month
+                Tables\Filters\SelectFilter::make('plan_month')
+                    ->label('เดือน (Month)')
+                    ->options([
+                        '1' => 'มกราคม', '2' => 'กุมภาพันธ์', '3' => 'มีนาคม', '4' => 'เมษายน',
+                        '5' => 'พฤษภาคม', '6' => 'มิถุนายน', '7' => 'กรกฎาคม', '8' => 'สิงหาคม',
+                        '9' => 'กันยายน', '10' => 'ตุลาคม', '11' => 'พฤศจิกายน', '12' => 'ธันวาคม',
+                    ])
+                    ->query(function ($query, array $data) {
+                        if (!empty($data['value'])) {
+                            $query->whereMonth('plan_month', $data['value']);
+                        }
+                    })
+                    ->native(false),
+
+                // Filter by Calibration Type
+                Tables\Filters\SelectFilter::make('calibration_type')
+                    ->label('ประเภท (Type)')
+                    ->options(function () {
+                        return \App\Models\MonthlyPlan::select('calibration_type')
+                            ->distinct()
+                            ->whereNotNull('calibration_type')
+                            ->pluck('calibration_type', 'calibration_type')
+                            ->toArray();
+                    })
+                    ->native(false),
+
+                // Filter by Status
+                Tables\Filters\SelectFilter::make('status')
+                    ->label('สถานะ (Status)')
+                    ->options([
+                        'Plan' => 'Plan',
+                        'In Progress' => 'In Progress',
+                        'Completed' => 'Completed',
+                        'Overdue' => 'Overdue',
+                    ])
+                    ->native(false),
+
                 Tables\Filters\SelectFilter::make('department')
                     ->label('แผนก')
-                    ->options(fn () => Department::pluck('name', 'name')->toArray()),
-
-                Tables\Filters\SelectFilter::make('tool_type_id')
-                    ->label('ประเภท')
-                    ->relationship('toolType', 'name'),
-            ])
+                    ->options(fn () => Department::pluck('name', 'name')->toArray())
+                    ->native(false),
+            ], layout: Tables\Enums\FiltersLayout::AboveContentCollapsible)
             ->headerActions([
                 // Sync Data Action
-                Action::make('sync_data')
-                    ->label('🔄 Sync Data')
-                    ->color('info')
+                Action::make('sync_data') // 🟢 ปุ่มดึงข้อมูลอัตโนมัติจากเครื่องมือและประวัติสอบเทียบ
+                    ->label('Sync Data')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('primary')
                     ->form([
                         DatePicker::make('month')
                             ->label('เดือน')
                             ->displayFormat('F Y')
-                            ->native(false)
                             ->default(now()->startOfMonth())
                             ->required(),
                     ])
                     ->action(function (array $data) {
-                        static::syncDataForMonth(Carbon::parse($data['month']));
+                        $month = Carbon::parse($data['month']);
+                        MonthlyPlanResource::syncDataForMonth($month);
+                        Notification::make()
+                            ->title('Sync Data Completed')
+                            ->success()
+                            ->send();
+                    }),
+
+                // Summary Report Action
+                Action::make('summary_report')
+                    ->label('Summary Report')
+                    ->icon('heroicon-o-document-arrow-down')
+                    ->color('warning')
+                    ->form([
+                        DatePicker::make('month')
+                            ->label('Month')
+                            ->displayFormat('F Y')
+                            ->default(now()->startOfMonth())
+                            ->required(),
+                        Select::make('department')
+                            ->label('Department')
+                            ->options(fn () => Department::pluck('name', 'name')->toArray())
+                            ->placeholder('All Departments'),
+                        Select::make('calibration_type')
+                            ->label('Calibration Type')
+                            ->options(fn () => \App\Models\MonthlyPlan::select('calibration_type')
+                                ->distinct()
+                                ->whereNotNull('calibration_type')
+                                ->pluck('calibration_type', 'calibration_type')
+                                ->toArray())
+                            ->placeholder('All Types'),
+                        Select::make('status')
+                            ->label('Status')
+                            ->options([
+                                'Plan' => 'Plan',
+                                'Completed' => 'Completed',
+                                'Remain' => 'Remain',
+                            ])
+                            ->placeholder('All Statuses'),
+                    ])
+                    ->action(function (array $data) {
+                        $month = Carbon::parse($data['month']);
+                        $start = $month->copy()->startOfMonth()->format('Y-m-d');
+                        $end = $month->copy()->endOfMonth()->format('Y-m-d');
+                        $dept = $data['department'] ?? 'all';
+                        $calType = $data['calibration_type'] ?? 'all';
+                        $status = $data['status'] ?? 'all';
+
+                        return redirect()->to(route('monthly-plan.pdf', [
+                            'pdf_type' => 'monthly_report',
+                            'start_date' => $start,
+                            'end_date' => $end,
+                            'department' => $dept,
+                            'calibration_type' => $calType,
+                            'status' => $status,
+                        ]));
                     })
-                    ->requiresConfirmation()
-                    ->modalHeading('ดึงข้อมูลอัตโนมัติ')
-                    ->modalDescription('ระบบจะดึงยอด Plan/Cal จากข้อมูลจริง สำหรับเดือนที่เลือก'),
+                    ->openUrlInNewTab(true),
 
                 // Export PDF Action
                 Action::make('export_pdf')
@@ -242,13 +378,9 @@ class MonthlyPlanResource extends Resource
                             ))
                             ->default('all'),
 
-                        Select::make('tool_type_id')
-                            ->label('ประเภทเครื่องมือ')
-                            ->options(fn () => array_merge(
-                                ['all' => 'ทั้งหมด'],
-                                ToolType::pluck('name', 'id')->toArray()
-                            ))
-                            ->default('all'),
+                        // Tool Type filter might need adjustment or removal regarding PDF logic
+                        // Keeping it generic for now or removing if confusing without ToolType
+                        // Select::make('tool_type_id')... 
 
                         Select::make('pdf_type')
                             ->label('รูปแบบ PDF')
@@ -275,71 +407,101 @@ class MonthlyPlanResource extends Resource
             ]);
     }
 
+
     /**
      * Sync data from real calibration data (OPTIMIZED)
+     * 🟢 ฟังก์ชันหลักสำหรับดึงข้อมูลจริงจากระบบมาอัปเดตแผน (ทำงานเบื้องหลัง)
      */
     public static function syncDataForMonth(Carbon $month): void
     {
         $startOfMonth = $month->copy()->startOfMonth();
         $endOfMonth = $month->copy()->endOfMonth();
 
-        // 1. Get Plan counts (instruments due this month) - GROUP BY in one query
-        $planCounts = Instrument::join('departments', 'instruments.department_id', '=', 'departments.id')
-            ->whereBetween('next_cal_date', [$startOfMonth, $endOfMonth])
-            ->groupBy('tool_type_id', 'departments.name')
-            ->selectRaw('tool_type_id, departments.name as department, COUNT(*) as plan_count')
+        // 🟢 ขั้นตอนที่ 1: หาจำนวน "Remaining" (เครื่องมือที่ยังค้างสอบในเดือนนี้ + ยอดตกค้างจากเดือนก่อน)
+        // ดึงจาก latest_calibration_logs ที่มี next_cal_date <= สิ้นเดือนที่เลือก
+        // สูตรใหม่: Rolling Backlog (งานเก่าที่ยังไม่ทำ จะถูกทบมาเรื่อยๆ)
+        $remainingCounts = DB::table('latest_calibration_logs as lcl')
+            ->join('instruments', 'lcl.instrument_id', '=', 'instruments.id')
+            ->join('departments', 'instruments.department_id', '=', 'departments.id')
+            ->where('lcl.next_cal_date', '<=', $endOfMonth)
+            ->whereNotIn('instruments.status', ['ยกเลิก', 'สูญหาย', 'Inactive', 'Lost']) // 🔥 Filter Inactive
+            ->groupBy('departments.name', 'lcl.calibration_type')
+            ->selectRaw('
+                departments.name as department,
+                lcl.calibration_type,
+                COUNT(DISTINCT lcl.instrument_id) as remaining_count
+            ')
             ->get()
-            ->keyBy(fn($item) => $item->tool_type_id . '_' . $item->department);
+            ->keyBy(fn($item) => $item->department . '_' . ($item->calibration_type ?? 'NONE'));
 
-        // 2. Get Cal counts and levels - GROUP BY in one query
+        // 🟢 ขั้นตอนที่ 2: หาจำนวน "Actual" (เครื่องมือที่สอบเทียบแล้วในเดือนนี้)
+        // ดึงจาก calibration_logs ที่มี cal_date ตกในเดือนที่เลือก
         $calCounts = CalibrationRecord::join('instruments', 'calibration_logs.instrument_id', '=', 'instruments.id')
             ->join('departments', 'instruments.department_id', '=', 'departments.id')
             ->whereBetween('calibration_logs.cal_date', [$startOfMonth, $endOfMonth])
-            ->groupBy('instruments.tool_type_id', 'departments.name')
+            ->whereNotIn('instruments.status', ['ยกเลิก', 'สูญหาย', 'Inactive', 'Lost']) // 🔥 Filter Inactive
+            ->groupBy('departments.name', 'calibration_logs.calibration_type')
             ->selectRaw('
-                instruments.tool_type_id,
                 departments.name as department,
+                calibration_logs.calibration_type,
                 COUNT(*) as cal_count,
                 SUM(CASE WHEN calibration_logs.cal_level = \'A\' THEN 1 ELSE 0 END) as level_a,
                 SUM(CASE WHEN calibration_logs.cal_level = \'B\' THEN 1 ELSE 0 END) as level_b,
                 SUM(CASE WHEN calibration_logs.cal_level = \'C\' THEN 1 ELSE 0 END) as level_c
             ')
             ->get()
-            ->keyBy(fn($item) => $item->tool_type_id . '_' . $item->department);
+            ->keyBy(fn($item) => $item->department . '_' . ($item->calibration_type ?? 'NONE'));
 
-        // 3. Merge and insert/update
-        $allKeys = $planCounts->keys()->merge($calCounts->keys())->unique();
+        // 🟢 ขั้นตอนที่ 3: รวมข้อมูล (Set/Pcs = Remaining + Actual)
+        $allKeys = $remainingCounts->keys()->merge($calCounts->keys())->unique();
 
         foreach ($allKeys as $key) {
-            $planData = $planCounts->get($key);
+            $remainingData = $remainingCounts->get($key);
             $calData = $calCounts->get($key);
 
-            // Extract tool_type_id and department from key
-            if ($planData) {
-                $toolTypeId = $planData->tool_type_id;
-                $department = $planData->department;
+            // Extract info
+            if ($remainingData) {
+                $department = $remainingData->department;
+                $calibrationType = $remainingData->calibration_type;
             } else {
-                $toolTypeId = $calData->tool_type_id;
                 $department = $calData->department;
+                $calibrationType = $calData->calibration_type;
             }
 
-            $planCount = $planData?->plan_count ?? 0;
-            $calCount = $calData?->cal_count ?? 0;
+            if (empty($calibrationType)) continue;
+
+            $remainingCount = $remainingData?->remaining_count ?? 0;  // ยังค้างสอบ
+            $calCount = $calData?->cal_count ?? 0;                     // สอบแล้ว
+            $planCount = $remainingCount + $calCount;                  // Set/Pcs = Remaining + Actual
+
             $levelA = $calData?->level_a ?? 0;
             $levelB = $calData?->level_b ?? 0;
             $levelC = $calData?->level_c ?? 0;
 
+            // 🟢 Logic 3 Statuses: Plan, Completed, Remain
+            $status = 'Plan';
+            $isPast = $startOfMonth->endOfMonth()->isPast();
+
+            if ($calCount >= $planCount && $planCount > 0) {
+                $status = 'Completed';
+            } elseif ($isPast) {
+                $status = 'Remain'; // เลยกำหนด (เดือนเก่าไม่เสร็จ)
+            } else {
+                $status = 'Plan'; // ยังไม่เริ่ม หรือ กำลังทำ (เดือนปัจจุบัน/อนาคต)
+            }
+
             MonthlyPlan::updateOrCreate(
                 [
                     'plan_month' => $startOfMonth->format('Y-m-d'),
-                    'tool_type_id' => $toolTypeId,
                     'department' => $department,
+                    'calibration_type' => $calibrationType,
                 ],
                 [
-                    'status' => $calCount >= $planCount && $planCount > 0 ? 'Completed' : 'Plan',
+                    'tool_type_id' => null, 
+                    'status' => $status,
                     'plan_count' => $planCount,
                     'cal_count' => $calCount,
-                    'remain_count' => max(0, $planCount - $calCount),
+                    'remain_count' => $remainingCount,
                     'level_a' => $levelA,
                     'level_b' => $levelB,
                     'level_c' => $levelC,

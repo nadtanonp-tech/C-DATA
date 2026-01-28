@@ -120,6 +120,11 @@ class DueThisMonthWidget extends BaseWidget
                     });
                 }
                 
+                // 🔥 Filter: ไม่รวมเครื่องมือที่ ยกเลิก หรือ สูญหาย
+                $query->whereHas('instrument', function ($q) {
+                    $q->whereNotIn('status', ['ยกเลิก', 'สูญหาย', 'Inactive', 'Lost']);
+                });
+                
                 return $query;
             })
             ->deferLoading() // 🚀 ไม่ query จนกว่าตารางจะแสดง
@@ -269,6 +274,13 @@ class DueThisMonthWidget extends BaseWidget
                     $q->where('name', $this->selectedType);
                 });
             }
+            
+            // 🔥 Filter: ไม่รวมเครื่องมือที่ ยกเลิก หรือ สูญหาย
+            $ignoredStatuses = ['ยกเลิก', 'สูญหาย', 'Inactive', 'Lost'];
+            $query->whereHas('instrument', function ($q) use ($ignoredStatuses) {
+                $q->whereNotIn('status', $ignoredStatuses);
+            });
+            
             return $query->count();
         });
         

@@ -93,6 +93,9 @@ class DueTypeChartWidget extends ChartWidget
                      $query->where('tool_types.name', $this->selectedType);
                 }
                 
+                // 🔥 Filter: ไม่รวมเครื่องมือที่ ยกเลิก หรือ สูญหาย
+                $query->whereNotIn('instruments.status', ['ยกเลิก', 'สูญหาย', 'Inactive', 'Lost']);
+                
                 $data = $query->groupBy('tool_types.name')
                     ->orderByDesc('count')
                     ->get();

@@ -96,6 +96,11 @@ class CalibratedThisMonthWidget extends BaseWidget
                     $query->where('cal_place', $widget->selectedCalPlace);
                 }
                 
+                // 🔥 Filter: ไม่รวมเครื่องมือที่ ยกเลิก หรือ สูญหาย
+                $query->whereHas('instrument', function ($q) {
+                    $q->whereNotIn('status', ['ยกเลิก', 'สูญหาย', 'Inactive', 'Lost']);
+                });
+                
                 return $query;
             })
             ->deferLoading() // 🚀 ไม่ query จนกว่าตารางจะแสดง
@@ -265,6 +270,13 @@ class CalibratedThisMonthWidget extends BaseWidget
             if ($this->selectedCalPlace) {
                 $query->where('cal_place', $this->selectedCalPlace);
             }
+            
+            // 🔥 Filter: ไม่รวมเครื่องมือที่ ยกเลิก หรือ สูญหาย
+            $ignoredStatuses = ['ยกเลิก', 'สูญหาย', 'Inactive', 'Lost'];
+            $query->whereHas('instrument', function ($q) use ($ignoredStatuses) {
+                $q->whereNotIn('status', $ignoredStatuses);
+            });
+            
             return $query->count();
         });
         

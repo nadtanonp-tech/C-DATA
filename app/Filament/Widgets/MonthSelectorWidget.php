@@ -198,15 +198,22 @@ class MonthSelectorWidget extends Widget implements HasForms
             $options[0] = 'ทุกปี';
             
             // ดึงปีจากฐานข้อมูล (cal_date และ next_cal_date)
+            // 🔥 Filter: ไม่รวมเครื่องมือที่ ยกเลิก หรือ สูญหาย
+            $ignoredStatuses = ['ยกเลิก', 'สูญหาย', 'Inactive', 'Lost'];
+
             $yearsFromCalDate = \Illuminate\Support\Facades\DB::table('calibration_logs')
-                ->selectRaw('DISTINCT EXTRACT(YEAR FROM cal_date) as year')
-                ->whereNotNull('cal_date')
+                ->join('instruments', 'calibration_logs.instrument_id', '=', 'instruments.id')
+                ->selectRaw('DISTINCT EXTRACT(YEAR FROM calibration_logs.cal_date) as year')
+                ->whereNotNull('calibration_logs.cal_date')
+                ->whereNotIn('instruments.status', $ignoredStatuses)
                 ->pluck('year')
                 ->toArray();
                 
             $yearsFromNextCalDate = \Illuminate\Support\Facades\DB::table('calibration_logs')
-                ->selectRaw('DISTINCT EXTRACT(YEAR FROM next_cal_date) as year')
-                ->whereNotNull('next_cal_date')
+                ->join('instruments', 'calibration_logs.instrument_id', '=', 'instruments.id')
+                ->selectRaw('DISTINCT EXTRACT(YEAR FROM calibration_logs.next_cal_date) as year')
+                ->whereNotNull('calibration_logs.next_cal_date')
+                ->whereNotIn('instruments.status', $ignoredStatuses)
                 ->pluck('year')
                 ->toArray();
             

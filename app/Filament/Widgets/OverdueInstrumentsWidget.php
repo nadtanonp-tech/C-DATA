@@ -66,24 +66,28 @@ class OverdueInstrumentsWidget extends BaseWidget
         $year = $this->selectedYear ?? (int) Carbon::now()->format('Y');
         
         $query = DB::table('latest_calibration_logs')
-            ->where('next_cal_date', '<', $today);
+            ->where('latest_calibration_logs.next_cal_date', '<', $today);
         
         // กรองตามเดือน/ปี ของ next_cal_date (วันที่ครบกำหนด)
         if ($month === 0 && $year === 0) {
             // ทุกเดือน ทุกปี - ไม่ต้อง filter
         } elseif ($month === 0) {
             // ทุกเดือน ปีที่เลือก
-            $query->whereRaw('EXTRACT(YEAR FROM next_cal_date) = ?', [$year]);
+            $query->whereRaw('EXTRACT(YEAR FROM latest_calibration_logs.next_cal_date) = ?', [$year]);
         } elseif ($year === 0) {
             // เดือนที่เลือก ทุกปี
-            $query->whereRaw('EXTRACT(MONTH FROM next_cal_date) = ?', [$month]);
+            $query->whereRaw('EXTRACT(MONTH FROM latest_calibration_logs.next_cal_date) = ?', [$month]);
         } else {
             // เดือนและปีที่เลือก
-            $query->whereRaw('EXTRACT(MONTH FROM next_cal_date) = ?', [$month])
-                  ->whereRaw('EXTRACT(YEAR FROM next_cal_date) = ?', [$year]);
+            $query->whereRaw('EXTRACT(MONTH FROM latest_calibration_logs.next_cal_date) = ?', [$month])
+                  ->whereRaw('EXTRACT(YEAR FROM latest_calibration_logs.next_cal_date) = ?', [$year]);
         }
         
-        return $query->pluck('id')->toArray();
+        // 🔥 Filter: ไม่รวมเครื่องมือที่ ยกเลิก หรือ สูญหาย
+        $query->join('instruments', 'latest_calibration_logs.instrument_id', '=', 'instruments.id')
+              ->whereNotIn('instruments.status', ['ยกเลิก', 'สูญหาย', 'Inactive', 'Lost']);
+        
+        return $query->pluck('latest_calibration_logs.id')->toArray();
     }
 
     public function table(Table $table): Table
@@ -112,6 +116,11 @@ class OverdueInstrumentsWidget extends BaseWidget
                 if ($widget->selectedCalPlace) {
                     $query->where('cal_place', $widget->selectedCalPlace);
                 }
+                
+                // 🔥 Filter: ไม่รวมเครื่องมือที่ ยกเลิก หรือ สูญหาย
+                $query->whereHas('instrument', function ($q) {
+                    $q->whereNotIn('status', ['ยกเลิก', 'สูญหาย', 'Inactive', 'Lost']);
+                });
                 
                 return $query;
             })
@@ -259,6 +268,13 @@ class OverdueInstrumentsWidget extends BaseWidget
             if ($this->selectedCalPlace) {
                 $query->where('cal_place', $this->selectedCalPlace);
             }
+            
+            // 🔥 Filter: ไม่รวมเครื่องมือที่ ยกเลิก หรือ สูญหาย
+            $ignoredStatuses = ['ยกเลิก', 'สูญหาย', 'Inactive', 'Lost'];
+            $query->whereHas('instrument', function ($q) use ($ignoredStatuses) {
+                $q->whereNotIn('status', $ignoredStatuses);
+            });
+            
             return $query->count();
         });
         

@@ -1814,30 +1814,34 @@ class GaugeCalibrationResource extends Resource
     {
         return $table
             ->defaultPaginationPageOption(10)
-            ->paginationPageOptions([10, 25, 50, 100, 500])
             ->deferLoading()
             ->columns([
                 TextColumn::make('instrument.code_no')
                     ->label('ID Code Instrument')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->searchable()
                     ->sortable(),
 
                 TextColumn::make('instrument.toolType.name')
                     ->label('Type Name')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->searchable(),
 
                 TextColumn::make('cal_date')
                     ->label('Cal Date')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->date('d/m/Y')
                     ->sortable(),
 
                 TextColumn::make('next_cal_date')
                     ->label('Next Cal')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->date('d/m/Y')
                     ->sortable(),
 
                 TextColumn::make('result_status')
                     ->label('ผลการ Cal')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         'Pass' => 'success',
@@ -1847,6 +1851,7 @@ class GaugeCalibrationResource extends Resource
 
                 TextColumn::make('cal_level')
                     ->label('Level')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->color(fn (string $state): string => match ($state) {
                         'A' => 'success',
                         'B' => 'warning',

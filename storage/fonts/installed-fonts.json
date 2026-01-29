@@ -6,5 +6,11 @@
     "angsana new": {
         "normal": "D:\\Programs\\C-DATA\\storage\\fonts\/angsana_new_normal_62bee89825ba271d607f4574fe228ae8",
         "bold": "angsana_new_bold_d9690bd28c5771eb2bc2a66c4a5e2a9f"
+    },
+    "angsana": {
+        "normal": "D:\\Programs\\C-DATA\\storage\\fonts\/angsana_normal_62bee89825ba271d607f4574fe228ae8",
+        "bold": "D:\\Programs\\C-DATA\\storage\\fonts\/angsana_bold_d9690bd28c5771eb2bc2a66c4a5e2a9f",
+        "italic": "D:\\Programs\\C-DATA\\storage\\fonts\/angsana_italic_738c8644e005d7f3cbeb53df25930ff2",
+        "bold_italic": "angsana_bold_italic_327e7d0614a6b6b76c453dae8593fd22"
     }
 }

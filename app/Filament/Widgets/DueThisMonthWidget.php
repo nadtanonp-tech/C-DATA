@@ -18,11 +18,19 @@ if (!defined('DASHBOARD_CACHE_TTL')) define('DASHBOARD_CACHE_TTL', 1800);
 
 class DueThisMonthWidget extends BaseWidget
 {
+    public function placeholder(): \Illuminate\Contracts\View\View
+    {
+        return view('components.widget-spinner');
+    }
+
     protected static ?string $heading = 'เครื่องมือครบกำหนดสอบเทียบ';
     
-    protected int | string | array $columnSpan = 'full';
+    public function getColumnSpan(): int | string | array
+    {
+        return 'full';
+    }
     
-    protected static ?int $sort = 2;
+    protected static ?int $sort = 3;
 
     // 🚀 Polling - Auto-refresh every 10 seconds
     protected static ?string $pollingInterval = '10s';

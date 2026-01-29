@@ -17,12 +17,22 @@ use Illuminate\Support\Str;
 if (!defined('DASHBOARD_CACHE_TTL')) define('DASHBOARD_CACHE_TTL', 1800);
 
 class OverdueInstrumentsWidget extends BaseWidget
+
 {
+
+    public function placeholder(): \Illuminate\Contracts\View\View
+    {
+        return view('components.widget-spinner');
+    }
+    
     protected static ?string $heading = 'เครื่องมือที่เลยกำหนดสอบเทียบ';
     
-    protected int | string | array $columnSpan = 'full';
+    public function getColumnSpan(): int | string | array
+    {
+        return 'full';
+    }
     
-    protected static ?int $sort = 4;
+    protected static ?int $sort = 5;
 
     // 🚀 Polling - Auto-refresh every 10 seconds
     protected static ?string $pollingInterval = '10s';

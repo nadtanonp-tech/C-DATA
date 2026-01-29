@@ -14,17 +14,18 @@ use App\Filament\Widgets\DueTypeChartWidget;
 
 class Dashboard extends BaseDashboard
 {
-    protected static ?string $navigationIcon = 'heroicon-o-home';
-    protected static ?string $navigationLabel = 'หน้าหลัก (Dashboard)';
-    protected static ?string $title = 'Dashboard';
+    public function getColumns(): int | string | array
+    {
+        return 2;
+    }
     
     public function getWidgets(): array
     {
         return [
             CalibrationStatsWidget::class,
+            MonthSelectorWidget::class,
             CalibrationCostChartWidget::class,
             DueTypeChartWidget::class,
-            MonthSelectorWidget::class,
             DueThisMonthWidget::class,
             CalibratedThisMonthWidget::class,
             OverdueInstrumentsWidget::class,

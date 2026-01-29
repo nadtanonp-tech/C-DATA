@@ -9,6 +9,11 @@ use Filament\Resources\Pages\ListRecords;
 class ListExternalPurchasings extends ListRecords
 {
     use \Filament\Pages\Concerns\ExposesTableToWidgets;
+
+    public function getHeaderWidgetsColumns(): int | array
+    {
+        return 1;
+    }
     
     protected static string $resource = ExternalPurchasingResource::class;
 

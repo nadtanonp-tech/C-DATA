@@ -6,11 +6,19 @@ use App\Filament\Resources\ExternalCalResultResource;
 use App\Models\Instrument;
 use App\Models\CalibrationRecord;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Actions;
 
 class ViewExternalCalResult extends ViewRecord
 {
     protected static string $resource = ExternalCalResultResource::class;
     
+    protected function getHeaderActions(): array
+    {
+        return [
+            Actions\EditAction::make()->color('warning'),        
+        ];
+    }
+
     protected function mutateFormDataBeforeFill(array $data): array
     {
         // ดึงข้อมูล Instrument เพื่อแสดง fields

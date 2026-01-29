@@ -185,18 +185,18 @@
 
     @foreach($data as $typeName => $items)
     
-    <div style="margin-bottom: 20px; margin-top: {{ $loop->first ? '5px' : '20px' }};">
+    <div style="margin-bottom: 20px; margin-top: {{ $loop->first ? '5px' : '20px' }}; page-break-after: avoid; page-break-inside: avoid;">
         <table style="width: 35%;" cellspacing="0" cellpadding="0">
             @if($loop->first)
             <tr>
                 <td width="35%" class="bold text-center">Month:</td>
                 <td class="bold text-center">{{ $startDate->format('F Y') }}</td> 
             </tr>
+            @endif
             <tr>
                 <td class="bold text-center">Status:</td>
-                <td class="bold text-center">{{ $status }}</td>
+                <td class="bold text-center">{{ $items->first()->status ?? '-' }}</td>
             </tr>
-            @endif
             <tr>
                 <td width="35%" class="bold text-center">Type :</td>
                 <td class="bold text-center">{{ \Illuminate\Support\Str::headline($typeName) }}</td>

@@ -1107,17 +1107,16 @@ class CalibrationRecordResource extends Resource
     {
         return $table
             ->defaultPaginationPageOption(10)
-            ->paginationPageOptions([10, 25, 50, 100, 500])
             ->deferLoading()
             ->columns([
-                TextColumn::make('instrument.code_no')->label('ID Code')->searchable()->sortable(),
-                TextColumn::make('instrument.toolType.name')->label('Type Name')->searchable(),
-                TextColumn::make('cal_date')->label('Cal Date')->date('d/m/Y')->sortable(),
-                TextColumn::make('next_cal_date')->label('Next Cal')->date('d/m/Y')->sortable(),
+                TextColumn::make('instrument.code_no')->label('ID Code')->searchable()->toggleable(isToggledHiddenByDefault: false)->sortable(),
+                TextColumn::make('instrument.toolType.name')->label('Type Name')->searchable()->toggleable(isToggledHiddenByDefault: false),
+                TextColumn::make('cal_date')->label('Cal Date')->date('d/m/Y')->sortable()->toggleable(isToggledHiddenByDefault: false),
+                TextColumn::make('next_cal_date')->label('Next Cal')->date('d/m/Y')->sortable()->toggleable(isToggledHiddenByDefault: false),
                 TextColumn::make('result_status')->label('ผลการ Cal')->badge()
-                    ->color(fn (string $state): string => match ($state) { 'Pass' => 'success', 'Reject' => 'danger', default => 'gray' }),
+                    ->color(fn (string $state): string => match ($state) { 'Pass' => 'success', 'Reject' => 'danger', default => 'gray' })->toggleable(isToggledHiddenByDefault: false),
                 TextColumn::make('cal_level')->label('Level')->badge()
-                    ->color(fn (string $state): string => match ($state) { 'A' => 'success', 'B' => 'warning', 'C' => 'danger', default => 'gray' }),
+                    ->color(fn (string $state): string => match ($state) { 'A' => 'success', 'B' => 'warning', 'C' => 'danger', default => 'gray' })->toggleable(isToggledHiddenByDefault: false),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('calibration_type')

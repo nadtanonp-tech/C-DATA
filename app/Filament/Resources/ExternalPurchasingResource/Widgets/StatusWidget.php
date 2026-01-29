@@ -8,6 +8,11 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class StatusWidget extends BaseWidget
 {
+    public function placeholder(): \Illuminate\Contracts\View\View
+    {
+        return view('components.widget-spinner');
+    }
+
     protected function getStats(): array
     {
         return [

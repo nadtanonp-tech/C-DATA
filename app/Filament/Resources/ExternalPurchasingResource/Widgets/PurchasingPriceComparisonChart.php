@@ -22,6 +22,11 @@ class PurchasingPriceComparisonChart extends ChartWidget
         return \App\Filament\Resources\ExternalPurchasingResource\Pages\ListExternalPurchasings::class;
     }
 
+    public function placeholder(): \Illuminate\Contracts\View\View
+    {
+        return view('components.widget-spinner');
+    }
+
     protected function getFilters(): ?array
     {
         return [

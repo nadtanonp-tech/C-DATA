@@ -610,31 +610,38 @@ class ExternalCalResultResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->defaultPaginationPageOption(10)
+            ->deferLoading()
             // 🔥 Strict Filter: Show only External records
             ->modifyQueryUsing(fn (Builder $query) => $query->where('cal_place', 'External'))
             ->defaultSort('cal_date', 'desc')
             ->columns([
                 Tables\Columns\TextColumn::make('instrument.code_no')
                     ->label('Code No')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->searchable()
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('instrument.toolType.name')
                     ->label('Name')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->limit(25)
                     ->tooltip(fn ($state) => $state),
 
                 Tables\Columns\TextColumn::make('cal_date')
                     ->label('Cal Date')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->date('d/m/Y')
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('calibration_data.cer_no')
                     ->label('Cer No')
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->searchable(),
 
                 Tables\Columns\BadgeColumn::make('result_status')
                     ->label('Result')
+                    ->toggleable(isToggledHiddenByDefault: false)
                      ->colors([
                         'success' => 'Pass',
                         'danger' => 'Reject',
@@ -642,11 +649,13 @@ class ExternalCalResultResource extends Resource
 
                 Tables\Columns\TextColumn::make('next_cal_date')
                     ->label('Next Cal')
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->date('d/m/Y')
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('calibration_data.place_cal')
                     ->label('PlaceCAL')
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->limit(20),
             ])
             ->filters([
@@ -700,6 +709,7 @@ class ExternalCalResultResource extends Resource
             ->actions([
                 Tables\Actions\ViewAction::make()->color('gray'),
                 Tables\Actions\EditAction::make()->color('warning'),
+                Tables\Actions\DeleteAction::make()->color('danger'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

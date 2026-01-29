@@ -238,6 +238,8 @@ class ExternalPurchasingResource extends Resource
     {
         return $table
             ->defaultSort('created_at', 'desc')
+            ->defaultPaginationPageOption(10)
+            ->deferLoading()
             ->columns([
                 Tables\Columns\TextColumn::make('pr_no')
                     ->label('PR No')

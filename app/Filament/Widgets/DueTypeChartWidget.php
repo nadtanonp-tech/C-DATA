@@ -10,12 +10,16 @@ use Livewire\Attributes\On;
 
 class DueTypeChartWidget extends ChartWidget
 {
+    public function placeholder(): \Illuminate\Contracts\View\View
+    {
+        return view('components.widget-spinner');
+    }
+    
     protected static ?string $heading = 'สัดส่วนเครื่องมือตาม Type Name (Due This Month)';
     
-    protected static ?int $sort = 3;
+    protected static ?int $sort = 1;
     
     protected static ?string $pollingInterval = '10s';
-
     
     // Filters
     public ?int $selectedMonth = null;

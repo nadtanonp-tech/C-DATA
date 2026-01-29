@@ -51,12 +51,12 @@ class AdminPanelProvider extends PanelProvider
             ->navigationGroups([
                 'Instrument & Types Data',
                 'Calibration Report',
+                'Monthly Report',
             ])
             ->discoverClusters(in: app_path('Filament/Clusters'), for: 'App\\Filament\\Clusters')
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
-            ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
-                // ใช้ Custom Dashboard จาก app/Filament/Pages/Dashboard.php แทน
+                \App\Filament\Pages\Dashboard::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([

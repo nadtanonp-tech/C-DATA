@@ -307,7 +307,6 @@ class ToolTypeResource extends Resource
     {
         return $table
             ->defaultPaginationPageOption(10)
-            ->paginationPageOptions([10, 25, 50, 100, 500])
             ->deferLoading()
             ->columns([
 

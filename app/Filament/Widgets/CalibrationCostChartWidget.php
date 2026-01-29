@@ -10,9 +10,14 @@ use Livewire\Attributes\On;
 
 class CalibrationCostChartWidget extends ChartWidget
 {
+    public function placeholder(): \Illuminate\Contracts\View\View
+    {
+        return view('components.widget-spinner');
+    }
+
     protected static ?string $heading = 'ค่าใช้จ่ายสอบเทียบ (Calibration Cost)';
     
-    protected static ?int $sort = 10;
+    protected static ?int $sort = 1;
     
     // 🚀 Polling - Auto-refresh every 10 seconds
     protected static ?string $pollingInterval = '10s';

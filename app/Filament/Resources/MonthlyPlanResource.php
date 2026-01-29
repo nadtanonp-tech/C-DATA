@@ -25,15 +25,17 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
+
 class MonthlyPlanResource extends Resource
 {
     protected static ?string $model = MonthlyPlan::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
-    protected static ?string $navigationLabel = 'แผนสอบเทียบรายเดือน';
-    protected static ?string $modelLabel = 'แผนสอบเทียบ';
-    protected static ?string $pluralModelLabel = 'แผนสอบเทียบรายเดือน';
-    protected static ?string $navigationGroup = 'รายงาน';
+    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
+    protected static ?string $navigationLabel = 'Plan & Summary Cal Report';
+    protected static ?string $modelLabel = 'Plan & Summary Cal Report';
+    protected static ?string $pluralModelLabel = 'Plan & Summary Cal Report';
+    protected static ?string $cluster = \App\Filament\Clusters\MonthlyReport::class;
+
     protected static ?int $navigationSort = 1;
 
     public static function form(Form $form): Form
@@ -42,29 +44,41 @@ class MonthlyPlanResource extends Resource
             ->schema([
                 Section::make('ข้อมูลแผนสอบเทียบ') // 🟢 ส่วนที่ 1: ข้อมูลหลักของแผน (เดือน, ประเภท, แผนก)
                     ->schema([
-                        Grid::make(3)->schema([
+                        Grid::make(5)->schema([
                             DatePicker::make('plan_month')
                                 ->label('เดือน')
                                 ->displayFormat('F Y')
-                                ->native(false)
                                 ->required()
                                 ->columnSpan(1),
 
-                            Select::make('tool_type_id')
-                                ->label('ประเภทเครื่องมือ')
-                                ->relationship('toolType', 'name')
+                            Select::make('calibration_type')
+                                ->label('ประเภทที่ใช้สอบเทียบ')
+                                ->placeholder('เลือกประเภทที่ใช้สอบเทียบ')
+                                ->options(array_combine([
+                                    'KGauge', 'SnapGauge', 'PlugGauge', 'ThreadPlugGauge', 'SerrationPlugGauge',
+                                    'ThreadRingGauge', 'SerrationRingGauge', 'ThreadPlugGaugeFitWear', 'VernierCaliper',
+                                    'VernierDigital', 'VernierSpecial', 'DepthVernier', 'VernierHeightGauge',
+                                    'DialVernierHeightGauge', 'MicroMeter', 'DialCaliper', 'DialIndicator',
+                                    'DialTestIndicator', 'ThicknessGauge', 'ThicknessCaliper', 'CylinderGauge',
+                                    'ChamferGauge', 'PressureGauge', 'ExternalCal'
+                                ], [
+                                    'K Gauge', 'Snap Gauge', 'Plug Gauge', 'Thread Plug Gauge', 'Serration Plug Gauge',
+                                    'Thread Ring Gauge', 'Serration Ring Gauge', 'Thread Plug Gauge Fit Wear', 'Vernier Caliper',
+                                    'Vernier Digital', 'Vernier Special', 'Depth Vernier', 'Vernier Height Gauge',
+                                    'Dial Vernier Height Gauge', 'Micro Meter', 'Dial Caliper', 'Dial Indicator',
+                                    'Dial Test Indicator', 'Thickness Gauge', 'Thickness Caliper', 'Cylinder Gauge',
+                                    'Chamfer Gauge', 'Pressure Gauge', 'External Cal'
+                                ]))
                                 ->searchable()
-                                ->preload()
-                                ->columnSpan(1),
+                                ->columnSpan(2),
 
                             Select::make('department')
                                 ->label('แผนก')
+                                ->placeholder('เลือกแผนก')
                                 ->options(fn () => Department::pluck('name', 'name')->toArray())
                                 ->searchable()
                                 ->columnSpan(1),
-                        ]),
 
-                        Grid::make(3)->schema([
                             Select::make('status')
                                 ->label('สถานะ')
                                 ->options([
@@ -80,7 +94,7 @@ class MonthlyPlanResource extends Resource
 
                 Section::make('ยอดแผน/สอบเทียบ') // 🟢 ส่วนที่ 2: ตัวเลขสรุป (เป้าหมาย vs ทำได้จริง)
                     ->schema([
-                        Grid::make(3)->schema([
+                        Grid::make(4)->schema([
                             TextInput::make('plan_count')
                                 ->label('Plan (จำนวนที่ต้องสอบ)')
                                 ->numeric()
@@ -92,7 +106,7 @@ class MonthlyPlanResource extends Resource
                                 ),
 
                             TextInput::make('cal_count')
-                                ->label('Cal (สอบเทียบแล้ว)')
+                                ->label('Cal (จํานวนสอบเทียบแล้ว)')
                                 ->numeric()
                                 ->default(0)
                                 ->live()
@@ -101,7 +115,7 @@ class MonthlyPlanResource extends Resource
                                 ),
 
                             TextInput::make('remain_count')
-                                ->label('Remain (คงเหลือ)')
+                                ->label('Remain (จํานวนคงเหลือ)')
                                 ->numeric()
                                 ->default(0)
                                 ->disabled()
@@ -109,9 +123,9 @@ class MonthlyPlanResource extends Resource
                         ]),
                     ]),
 
-                Section::make('Level (ผลการสอบเทียบ)') // 🟢 ส่วนที่ 3: สรุปผล Level A/B/C
+                Section::make('จํานวน Level (ผลการสอบเทียบ)') // 🟢 ส่วนที่ 3: สรุปผล Level A/B/C
                     ->schema([
-                        Grid::make(3)->schema([
+                        Grid::make(6)->schema([
                             TextInput::make('level_a')
                                 ->label('Level A')
                                 ->numeric()
@@ -143,6 +157,8 @@ class MonthlyPlanResource extends Resource
     {
         return $table
             ->defaultSort('plan_month', 'desc')
+            ->defaultPaginationPageOption(10)
+            ->deferLoading()
             ->columns([
                 Tables\Columns\TextColumn::make('plan_month')
                     ->label('เดือน')
@@ -151,7 +167,7 @@ class MonthlyPlanResource extends Resource
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('calibration_type')
-                    ->label('ประเภท')
+                    ->label('ประเภทที่ใช้สอบเทียบ')
                     ->formatStateUsing(fn (string $state): string => \Illuminate\Support\Str::headline($state))
                     ->toggleable(isToggledHiddenByDefault: false)
                     ->searchable()
@@ -215,7 +231,7 @@ class MonthlyPlanResource extends Resource
                     ->alignCenter(),
 
                 Tables\Columns\TextColumn::make('remark')
-                    ->label('หมายเหตุ')
+                    ->label('Remark')
                     ->toggleable(isToggledHiddenByDefault: true)
                     ->limit(30),
             ])
@@ -223,6 +239,7 @@ class MonthlyPlanResource extends Resource
                 // Filter by Year
                 Tables\Filters\SelectFilter::make('plan_year')
                     ->label('ปี (Year)')
+                    ->searchable()
                     ->options(function () {
                         return \App\Models\MonthlyPlan::selectRaw('EXTRACT(YEAR FROM plan_month) as year')
                             ->distinct()
@@ -254,7 +271,7 @@ class MonthlyPlanResource extends Resource
 
                 // Filter by Calibration Type
                 Tables\Filters\SelectFilter::make('calibration_type')
-                    ->label('ประเภท (Type)')
+                    ->label('ประเภทที่ใช้สอบเทียบ (Cal Type)')
                     ->options(function () {
                         return \App\Models\MonthlyPlan::select('calibration_type')
                             ->distinct()
@@ -262,6 +279,7 @@ class MonthlyPlanResource extends Resource
                             ->pluck('calibration_type', 'calibration_type')
                             ->toArray();
                     })
+                    ->columnSpan(2)
                     ->native(false),
 
                 // Filter by Status
@@ -277,35 +295,67 @@ class MonthlyPlanResource extends Resource
 
                 Tables\Filters\SelectFilter::make('department')
                     ->label('แผนก')
+                    ->searchable()
                     ->options(fn () => Department::pluck('name', 'name')->toArray())
                     ->native(false),
             ], layout: Tables\Enums\FiltersLayout::AboveContentCollapsible)
-            ->headerActions([
-                // Sync Data Action
-                Action::make('sync_data') // 🟢 ปุ่มดึงข้อมูลอัตโนมัติจากเครื่องมือและประวัติสอบเทียบ
-                    ->label('Sync Data')
-                    ->icon('heroicon-o-arrow-path')
-                    ->color('primary')
+            ->headerActions([  
+                // Internal Plan Report Action
+                Action::make('internal_plan_report')
+                    ->label('Export Internal Plan')
+                    ->icon('heroicon-o-printer')
+                    ->color('warning')
                     ->form([
                         DatePicker::make('month')
                             ->label('เดือน')
                             ->displayFormat('F Y')
                             ->default(now()->startOfMonth())
                             ->required(),
+                        Select::make('department')
+                            ->label('Department')
+                            ->options(fn () => Department::pluck('name', 'name')->toArray())
+                            ->placeholder('All Departments'),
+                        Select::make('calibration_type')
+                            ->label('Calibration Type')
+                            ->options(fn () => \App\Models\MonthlyPlan::select('calibration_type')
+                                ->distinct()
+                                ->whereNotNull('calibration_type')
+                                ->pluck('calibration_type', 'calibration_type')
+                                ->toArray())
+                            ->placeholder('All Types'),
+                        Select::make('level')
+                            ->label('Level')
+                            ->options([
+                                'A' => 'Level A',
+                                'B' => 'Level B',
+                                'C' => 'Level C',
+                            ])
+                            ->default('A')
+                            ->required(),
                     ])
                     ->action(function (array $data) {
                         $month = Carbon::parse($data['month']);
-                        MonthlyPlanResource::syncDataForMonth($month);
-                        Notification::make()
-                            ->title('Sync Data Completed')
-                            ->success()
-                            ->send();
-                    }),
+                        $start = $month->copy()->startOfMonth()->format('Y-m-d');
+                        $end = $month->copy()->endOfMonth()->format('Y-m-d');
+                        $dept = $data['department'] ?? 'all';
+                        $calType = $data['calibration_type'] ?? 'all';
+                        $level = $data['level'] ?? 'A';
+
+                        return redirect()->to(route('monthly-plan.pdf', [
+                            'pdf_type' => 'internal_plan',
+                            'start_date' => $start,
+                            'end_date' => $end,
+                            'department' => $dept,
+                            'calibration_type' => $calType,
+                            'level' => $level,
+                        ]));
+                    })
+                    ->openUrlInNewTab(true),
 
                 // Summary Report Action
                 Action::make('summary_report')
-                    ->label('Summary Report')
-                    ->icon('heroicon-o-document-arrow-down')
+                    ->label('Export Summary Cal')
+                    ->icon('heroicon-o-printer')
                     ->color('warning')
                     ->form([
                         DatePicker::make('month')
@@ -353,51 +403,36 @@ class MonthlyPlanResource extends Resource
                     })
                     ->openUrlInNewTab(true),
 
-                // Export PDF Action
-                Action::make('export_pdf')
-                    ->label('📄 Export PDF')
-                    ->color('success')
+                    // Sync Data Action
+                    Action::make('sync_data') // 🟢 ปุ่มดึงข้อมูลอัตโนมัติจากเครื่องมือและประวัติสอบเทียบ
+                    ->label('Sync Data')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('info')
+                    ->modalWidth(\Filament\Support\Enums\MaxWidth::Small)
+                    ->centerModal()
+                    ->modalIcon('heroicon-o-arrow-path')
+                    ->modalHeading('Sync Data')
+                    ->modalDescription('เลือกเดือนที่ต้องการอัปเดตข้อมูล')
+                    ->modalSubmitActionLabel('Start Sync')
                     ->form([
-                        DatePicker::make('start_date')
-                            ->label('วันที่เริ่มต้น')
-                            ->displayFormat('d/m/Y')
-                            ->native(false)
+                        DatePicker::make('month')
+                            ->hiddenLabel()
+                            ->placeholder('Select Month')
+                            ->displayFormat('F Y')
+                            ->default(now()->startOfMonth())
                             ->required(),
-
-                        DatePicker::make('end_date')
-                            ->label('ถึงวันที่')
-                            ->displayFormat('d/m/Y')
-                            ->native(false)
-                            ->required(),
-
-                        Select::make('department')
-                            ->label('แผนก')
-                            ->options(fn () => array_merge(
-                                ['all' => 'ทั้งหมด'],
-                                Department::pluck('name', 'name')->toArray()
-                            ))
-                            ->default('all'),
-
-                        // Tool Type filter might need adjustment or removal regarding PDF logic
-                        // Keeping it generic for now or removing if confusing without ToolType
-                        // Select::make('tool_type_id')... 
-
-                        Select::make('pdf_type')
-                            ->label('รูปแบบ PDF')
-                            ->options([
-                                'monthly_report' => 'Monthly Report (ใบสรุปผล)',
-                                'cal_plan' => 'Gauge/Inst Cal Plan (แผนรายละเอียด)',
-                                'internal_plan' => 'Internal Calibration Plan (ใบให้หัวหน้าเซ็น)',
-                            ])
-                            ->required()
-                            ->native(false),
                     ])
                     ->action(function (array $data) {
-                        // TODO: Generate PDF
-                        return redirect()->route('monthly-plan.pdf', $data);
+                        $month = Carbon::parse($data['month']);
+                        MonthlyPlanResource::syncDataForMonth($month);
+                        Notification::make()
+                            ->title('Sync Data Completed')
+                            ->success()
+                            ->send();
                     }),
             ])
             ->actions([
+                Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
             ])
             ->bulkActions([
@@ -424,6 +459,7 @@ class MonthlyPlanResource extends Resource
             ->join('instruments', 'lcl.instrument_id', '=', 'instruments.id')
             ->join('departments', 'instruments.department_id', '=', 'departments.id')
             ->where('lcl.next_cal_date', '<=', $endOfMonth)
+            ->where('lcl.calibration_type', '!=', 'ExternalCal') // 🟢 Exclude ExternalCal
             ->whereNotIn('instruments.status', ['ยกเลิก', 'สูญหาย', 'Inactive', 'Lost']) // 🔥 Filter Inactive
             ->groupBy('departments.name', 'lcl.calibration_type')
             ->selectRaw('
@@ -439,6 +475,7 @@ class MonthlyPlanResource extends Resource
         $calCounts = CalibrationRecord::join('instruments', 'calibration_logs.instrument_id', '=', 'instruments.id')
             ->join('departments', 'instruments.department_id', '=', 'departments.id')
             ->whereBetween('calibration_logs.cal_date', [$startOfMonth, $endOfMonth])
+            ->where('calibration_logs.calibration_type', '!=', 'ExternalCal') // 🟢 Exclude ExternalCal
             ->whereNotIn('instruments.status', ['ยกเลิก', 'สูญหาย', 'Inactive', 'Lost']) // 🔥 Filter Inactive
             ->groupBy('departments.name', 'calibration_logs.calibration_type')
             ->selectRaw('

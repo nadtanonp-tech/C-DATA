@@ -13,6 +13,11 @@ class ToolTypeStatsWidget extends BaseWidget
     
     // 🚀 Lazy loading - ทำให้ widget โหลดแบบ async ไม่บล็อก navigation
     protected static bool $isLazy = true;
+
+    public function placeholder(): \Illuminate\Contracts\View\View
+    {
+        return view('components.widget-spinner');
+    }
     
     protected function getStats(): array
     {
@@ -25,7 +30,7 @@ class ToolTypeStatsWidget extends BaseWidget
         // นับจำนวน Type ที่ยังไม่ถูกใช้งาน
         $unusedTypes = ToolType::doesntHave('instruments')->count();
 
-        return [
+        return [       
             Stat::make('ประเภทเครื่องมือทั้งหมด', number_format($totalTypes))
                 ->description('จำนวน Type ในระบบ')
                 ->descriptionIcon('heroicon-m-tag')

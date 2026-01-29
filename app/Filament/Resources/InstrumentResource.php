@@ -124,7 +124,7 @@ class InstrumentResource extends Resource
                     ->schema([
                         Grid::make(4)->schema([
                             TextInput::make('owner_name')
-                                ->label('ผู้รับผิดชอบ (Owner Name)'),
+                                ->label('ผู้รับผิดชอบ (Owner Name)'), // เพิ่มเก็บประวัติผู้รับผิดชอบ
                             
                             TextInput::make('owner_id')
                                 ->label('รหัสพนักงาน'),
@@ -264,7 +264,6 @@ class InstrumentResource extends Resource
     {
         return $table
             ->defaultPaginationPageOption(10)
-            ->paginationPageOptions([10, 25, 50, 100, 500])
             ->deferLoading()
             ->columns([
 

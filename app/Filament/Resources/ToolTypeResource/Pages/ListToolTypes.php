@@ -18,6 +18,11 @@ class ListToolTypes extends ListRecords
         ];
     }
 
+    public function getHeaderWidgetsColumns(): int | array
+    {
+        return 1;
+    }
+
     protected function getHeaderActions(): array
     {
         return [

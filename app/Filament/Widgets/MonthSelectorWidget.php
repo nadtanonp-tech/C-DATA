@@ -12,12 +12,20 @@ use Carbon\Carbon;
 class MonthSelectorWidget extends Widget implements HasForms
 {
     use InteractsWithForms;
+
+    public function placeholder(): \Illuminate\Contracts\View\View
+    {
+        return view('components.widget-spinner');
+    }
     
     protected static string $view = 'filament.widgets.month-selector-widget';
     
-    protected int | string | array $columnSpan = 'full';
+    public function getColumnSpan(): int | string | array
+    {
+        return 'full';
+    }
     
-    protected static ?int $sort = 1;
+    protected static ?int $sort = 2;
     
     // 🚀 Lazy loading - ทำให้ widget โหลดแบบ async ไม่บล็อก navigation
     protected static bool $isLazy = true;

@@ -15,6 +15,15 @@ if (!defined('DASHBOARD_CACHE_TTL')) define('DASHBOARD_CACHE_TTL', 1800);
 
 class CalibrationStatsWidget extends BaseWidget
 {
+    public function placeholder(): \Illuminate\Contracts\View\View
+    {
+        return view('components.widget-spinner');
+    }
+    public function getColumnSpan(): int | string | array
+    {
+        return 'full';
+    }
+
     protected static ?int $sort = 0;
 
     // 🚀 Polling - Auto-refresh every 10 seconds

@@ -8,19 +8,15 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class InstrumentStatsWidget extends BaseWidget
 {
+    public function placeholder(): \Illuminate\Contracts\View\View
+    {
+        return view('components.widget-spinner');
+    }
+
     protected static ?string $pollingInterval = null;
     
     // 🚀 Lazy loading - ทำให้ widget โหลดแบบ async ไม่บล็อก navigation
     protected static bool $isLazy = true;
-    
-    // ใช้ 'full' เพื่อให้ Widget กว้างเต็มหน้าจอ
-    protected int | string | array $columnSpan = 'full';
-    
-    // กำหนดจำนวน columns สำหรับ Stats (4 columns ตาม Filament รองรับ)
-    protected function getColumns(): int
-    {
-        return 4;
-    }
     
     protected function getStats(): array
     {

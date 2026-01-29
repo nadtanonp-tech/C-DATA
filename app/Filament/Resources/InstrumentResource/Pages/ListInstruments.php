@@ -11,6 +11,11 @@ class ListInstruments extends ListRecords
 {
     protected static string $resource = InstrumentResource::class;
 
+    public function getHeaderWidgetsColumns(): int | array
+    {
+        return 1;
+    }
+
     protected function getHeaderActions(): array
     {
         return [

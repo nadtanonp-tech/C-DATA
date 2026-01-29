@@ -19,9 +19,12 @@ class CalibratedThisMonthWidget extends BaseWidget
 {
     protected static ?string $heading = 'เครื่องมือที่สอบเทียบแล้ว';
     
-    protected int | string | array $columnSpan = 'full';
+    public function getColumnSpan(): int | string | array
+    {
+        return 'full';
+    }
     
-    protected static ?int $sort = 3;
+    protected static ?int $sort = 4;
 
     // 🚀 Polling - Auto-refresh every 10 seconds
     protected static ?string $pollingInterval = '10s';
@@ -291,5 +294,9 @@ class CalibratedThisMonthWidget extends BaseWidget
     public function getPollingInterval(): ?string
     {
         return static::$pollingInterval;
+    }
+    public function placeholder(): \Illuminate\Contracts\View\View
+    {
+        return view('components.widget-spinner');
     }
 }

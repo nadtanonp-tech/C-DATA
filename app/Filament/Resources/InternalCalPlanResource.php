@@ -316,7 +316,7 @@ class InternalCalPlanResource extends Resource
                 Action::make('export_cal_plan')
                     ->label('Export Gauge & Instrument Plan')
                     ->icon('heroicon-o-printer')
-                    ->color('warning')
+                    ->color('success')
                     ->modalWidth(\Filament\Support\Enums\MaxWidth::Small)
                     ->centerModal()
                     ->modalHeading('Export Calibration Plan')
@@ -387,7 +387,7 @@ class InternalCalPlanResource extends Resource
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()->color('warning'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -436,27 +436,54 @@ class InternalCalPlanResource extends Resource
             ])
             ->get();
 
+        $upsertData = [];
+        $now = now();
+
         foreach ($instruments as $item) {
-            InternalCalPlan::updateOrCreate(
-                [
-                    'plan_month' => $startOfMonth->format('Y-m-d'),
-                    'instrument_id' => $item->instrument_id,
-                ],
-                [
-                    'calibration_log_id' => $item->calibration_log_id,
-                    'code_no' => $item->code_no,
-                    'tool_name' => $item->tool_name,
-                    'tool_size' => $item->tool_size,
-                    'serial_no' => $item->serial_no,
-                    'cal_date' => $item->cal_date,
-                    'cal_level' => $item->cal_level,
-                    'result_status' => $item->result_status,
-                    'remark' => $item->remark,
-                    'next_cal_date' => $item->next_cal_date,
-                    'department' => $item->department,
-                    'calibration_type' => $item->calibration_type,
-                ]
-            );
+            // Use instrument_id as key to prevent duplicates (Cardinality Violation Fix)
+            $upsertData[$item->instrument_id] = [
+                'plan_month' => $startOfMonth->format('Y-m-d'),
+                'instrument_id' => $item->instrument_id,
+                'calibration_log_id' => $item->calibration_log_id,
+                'code_no' => $item->code_no,
+                'tool_name' => $item->tool_name,
+                'tool_size' => $item->tool_size,
+                'serial_no' => $item->serial_no,
+                'cal_date' => $item->cal_date,
+                'cal_level' => $item->cal_level,
+                'result_status' => $item->result_status,
+                'remark' => $item->remark,
+                'next_cal_date' => $item->next_cal_date,
+                'department' => $item->department,
+                'calibration_type' => $item->calibration_type,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        if (!empty($upsertData)) {
+            // Bulk Upsert (แบ่ง Chunk เพื่อความปลอดภัยกรณีข้อมูลเยอะมาก)
+            foreach (array_chunk($upsertData, 1000) as $chunk) {
+                InternalCalPlan::upsert(
+                    $chunk,
+                    ['plan_month', 'instrument_id'], // Unique Key ที่ใช้เช็คซ้ำ
+                    [
+                        'calibration_log_id',
+                        'code_no',
+                        'tool_name',
+                        'tool_size',
+                        'serial_no',
+                        'cal_date',
+                        'cal_level',
+                        'result_status',
+                        'remark',
+                        'next_cal_date',
+                        'department',
+                        'calibration_type',
+                        'updated_at',
+                    ]
+                );
+            }
         }
     }
 

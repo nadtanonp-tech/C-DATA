@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Filament\Resources\InstrumentResource\Pages;
+namespace App\Filament\Resources\ToolTypeResource\Pages;
 
-use App\Filament\Resources\InstrumentResource;
+use App\Filament\Resources\ToolTypeResource;
 use Filament\Actions;
 use Filament\Resources\Pages\ViewRecord;
 
-class ViewInstrument extends ViewRecord
+class ViewToolType extends ViewRecord
 {
-    protected static string $resource = InstrumentResource::class;
+    protected static string $resource = ToolTypeResource::class;
 
     protected function getHeaderActions(): array
     {

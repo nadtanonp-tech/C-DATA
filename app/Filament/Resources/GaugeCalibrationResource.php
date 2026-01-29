@@ -75,19 +75,26 @@ class GaugeCalibrationResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        // 🔥 Query all gauge types dynamically from $gaugeTypes patterns
+        // 🔥 Optimize: Query all gauge types using REGEXP instead of multiple LIKEs
+        // Collect all unique patterns like '-01-', '-02-' etc.
+        $patterns = [];
+        foreach (self::$gaugeTypes as $config) {
+            $p = explode('|', $config['code_pattern']);
+            foreach ($p as $v) {
+                // Remove % from %-01-% to get -01-
+                $patterns[] = str_replace('%', '', $v);
+            }
+        }
+        
+        $uniquePatterns = array_unique($patterns);
+        $regex = implode('|', $uniquePatterns); // e.g., "-01-|-02-|-03-"
+
         return parent::getEloquentQuery()
             ->with(['instrument.toolType'])
-            ->whereHas('instrument', function ($query) {
-                $query->where(function ($q) {
-                    // รวมทุก pattern จาก $gaugeTypes
-                    foreach (self::$gaugeTypes as $type => $config) {
-                        $patterns = explode('|', $config['code_pattern']);
-                        foreach ($patterns as $pattern) {
-                            $q->orWhere('code_no', 'LIKE', $pattern);
-                        }
-                    }
-                });
+            ->whereHas('instrument', function ($query) use ($regex) {
+                // Compatibility: PgSQL uses '~' for regex, MySQL uses 'REGEXP'
+                $operator = $query->getConnection()->getDriverName() === 'pgsql' ? '~' : 'REGEXP';
+                $query->whereRaw("code_no {$operator} ?", [$regex]);
             });
     }
 
@@ -196,6 +203,7 @@ class GaugeCalibrationResource extends Resource
                                     ->label('วันที่สอบเทียบ (Cal Date)')
                                     ->default(now())
                                     ->required()
+                                    ->columnSpan(1)
                                     ->reactive()
                                     ->afterStateUpdated(function ($state, Set $set, Get $get) {
                                         $level = $get('cal_level') ?? 'A';
@@ -1902,7 +1910,6 @@ class GaugeCalibrationResource extends Resource
                 Actions\ViewAction::make(),
                 Actions\EditAction::make()
                     ->color('warning'),
-                Actions\DeleteAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -1921,7 +1928,6 @@ class GaugeCalibrationResource extends Resource
         return [
             'index' => Pages\ListGaugeCalibrations::route('/'),
             'create' => Pages\CreateGaugeCalibration::route('/create'),
-            'view' => Pages\ViewGaugeCalibration::route('/{record}'),
             'edit' => Pages\EditGaugeCalibration::route('/{record}/edit'),
         ];
     }

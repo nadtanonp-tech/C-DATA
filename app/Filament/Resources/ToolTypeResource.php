@@ -378,6 +378,8 @@ class ToolTypeResource extends Resource
                     ),
             ], layout: Tables\Enums\FiltersLayout::AboveContentCollapsible)
             ->actions([
+                Tables\Actions\ViewAction::make()
+                    ->color('gray'),
                 Tables\Actions\EditAction::make()
                     ->color('warning'),
             ])
@@ -400,6 +402,7 @@ class ToolTypeResource extends Resource
         return [
             'index' => Pages\ListToolTypes::route('/'),
             'create' => Pages\CreateToolType::route('/create'),
+            'view' => Pages\ViewToolType::route('/{record}/view'),
             'edit' => Pages\EditToolType::route('/{record}/edit'),
         ];
     }

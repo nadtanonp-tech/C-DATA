@@ -185,6 +185,7 @@ class ExternalPurchasingResource extends Resource
                                     'Sent' => 'Sent (ส่งแล้ว)',
                                     'Received' => 'Received (รับของแล้ว)',
                                     'Completed' => 'Completed (เสร็จสิ้น)',
+                                    'Cancelled' => 'Cancelled (ยกเลิก)',
                                 ])
                                 ->default('Draft')
                                 ->native(false)
@@ -261,7 +262,7 @@ class ExternalPurchasingResource extends Resource
 
                 Tables\Columns\TextColumn::make('requester')
                     ->label('สถานที่สอบเทียบเสนอ')
-                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->tooltip(fn ($state) => $state)
                     ->limit(20),
 
@@ -286,6 +287,7 @@ class ExternalPurchasingResource extends Resource
                         'info' => 'Sent',
                         'success' => 'Received',
                         'primary' => 'Completed',
+                        'danger' => 'Cancelled',
                     ]),
 
                 Tables\Columns\TextColumn::make('receive_date')
@@ -302,7 +304,7 @@ class ExternalPurchasingResource extends Resource
 
                 Tables\Columns\TextColumn::make('net_price')
                     ->label('ราคาจริง')
-                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->toggleable(isToggledHiddenByDefault: false)
                     ->money('THB')
                     ->sortable(),
 
@@ -352,6 +354,7 @@ class ExternalPurchasingResource extends Resource
                         'Sent' => 'Sent',
                         'Received' => 'Received',
                         'Completed' => 'Completed',
+                        'Cancelled' => 'Cancelled',
                     ]),
             ], layout: Tables\Enums\FiltersLayout::AboveContentCollapsible)
             ->filtersFormColumns(3)
@@ -371,6 +374,7 @@ class ExternalPurchasingResource extends Resource
                                 'Sent' => 'Sent (ส่งแล้ว)',
                                 'Received' => 'Received (รับของแล้ว)',
                                 'Completed' => 'Completed (เสร็จสิ้น)',
+                                'Cancelled' => 'Cancelled (ยกเลิก)',
                             ])
                             ->required()
                             ->native(false)

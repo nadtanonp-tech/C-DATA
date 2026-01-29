@@ -40,6 +40,11 @@ class StatusWidget extends BaseWidget
                 ->description('เสร็จสิ้น')
                 ->descriptionIcon('heroicon-m-archive-box')
                 ->color('primary'),
+
+            Stat::make('Cancelled', PurchasingRecord::where('status', 'Cancelled')->count())
+                ->description('ยกเลิก')
+                ->descriptionIcon('heroicon-m-x-circle')
+                ->color('danger'),
         ];
     }
 }

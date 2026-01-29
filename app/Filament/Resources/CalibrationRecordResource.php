@@ -1171,7 +1171,7 @@ class CalibrationRecordResource extends Resource
                     ])
                     ->native(false),
             ], layout: Tables\Enums\FiltersLayout::AboveContentCollapsible)
-            ->actions([Actions\ViewAction::make(), Actions\EditAction::make()->color('warning'), Actions\DeleteAction::make()])
+            ->actions([Actions\ViewAction::make(), Actions\EditAction::make()->color('warning'),])
             ->bulkActions([Tables\Actions\BulkActionGroup::make([Tables\Actions\DeleteBulkAction::make()])]);
     }
 

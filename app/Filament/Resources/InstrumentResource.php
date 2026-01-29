@@ -129,9 +129,6 @@ class InstrumentResource extends Resource
                             TextInput::make('owner_id')
                                 ->label('รหัสพนักงาน'),
 
-                            // เดิม: TextInput::make('department')...
-
-                            // ✅ เปลี่ยนเป็น:
                             Select::make('department_id')
                                 ->label('แผนก (Department)')
                                 ->relationship('department', 'name') // ดึงชื่อแผนกมาโชว์
@@ -299,14 +296,14 @@ class InstrumentResource extends Resource
                     ->label('Serial No')
                     ->searchable()
                     ->limit(30)
-                    ->toggleable(isToggledHiddenByDefault: false) // ตัดคำถ้ายาวเกิน
+                    ->toggleable(isToggledHiddenByDefault: true) // ตัดคำถ้ายาวเกิน
                     ->tooltip(fn ($state) => $state), // เอาเมาส์ชี้ดูชื่อเต็ม
 
                 TextColumn::make('asset_no')
                     ->label('Asset No')
                     ->searchable()
                     ->limit(30)
-                    ->toggleable(isToggledHiddenByDefault: false) // ตัดคำถ้ายาวเกิน
+                    ->toggleable(isToggledHiddenByDefault: true) // ตัดคำถ้ายาวเกิน
                     ->tooltip(fn ($state) => $state), // เอาเมาส์ชี้ดูชื่อเต็ม
 
                 TextColumn::make('equip_type')
@@ -495,6 +492,7 @@ class InstrumentResource extends Resource
                 Tables\Actions\EditAction::make()
                     ->color('warning'),
                 // � ปุ่มเปลี่ยนสถานะเครื่องมือ (Custom Action) �
+                // ปุ่มเปลี่ยนสถานะเครื่องมือ (Custom Action)
                 Action::make('change_status')
                     ->label('Set Status') // ชื่อปุ่ม
                     ->icon('heroicon-m-wrench') // ไอคอนแก้ไข
@@ -519,29 +517,75 @@ class InstrumentResource extends Resource
                             ->placeholder('เช่น เสียหายซ่อมไม่ได้, สูญหาย, หมดอายุการใช้งาน, กลับมาใช้งานได้แล้ว'),
                     ])
                     ->action(function (Instrument $record, array $data) {
-                        $oldStatus = $record->status;
-                        $newStatus = $data['new_status'];
+                        // ส่งค่าเหตุผลไปที่ Model (Virtual Attribute) เพื่อบันทึกประวัติอัตโนมัติ
+                        $record->status_remark = $data['status_reason'];
                         
-                        // 📝 บันทึกประวัติการเปลี่ยนสถานะลงตารางใหม่
-                        InstrumentStatusHistory::create([
-                            'instrument_id' => $record->id,
-                            'old_status' => $oldStatus,
-                            'new_status' => $newStatus,
-                            'reason' => $data['status_reason'],
-                            'changed_at' => now(),
-                            'changed_by' => auth()->id(),
-                        ]);
-                        
-                        // อัปเดตสถานะในตาราง instruments
+                        // อัปเดตสถานะ (Model Event จะทำงานและสร้าง History ให้เอง)
                         $record->update([
-                            'status' => $newStatus,
+                            'status' => $data['new_status'],
                         ]);
                     })  
-                    // ข้อความยืนยันความปลอดภัย
                     ->requiresConfirmation()
                     ->modalHeading('ยืนยันการเปลี่ยนสถานะเครื่องมือ')
                     ->modalDescription('คุณต้องการเปลี่ยนสถานะเครื่องมือนี้ใช่หรือไม่?')
                     ->modalSubmitActionLabel('ยืนยัน (Confirm)'),
+
+                // ปุ่มเปลี่ยนผู้รับผิดชอบ (Custom Action) - เพิ่มให้ใหม่
+                Action::make('change_owner')
+                    ->label('Set Owner') // ชื่อปุ่ม
+                    ->icon('heroicon-m-user-group') // ไอคอน
+                    ->color('success')
+                    ->fillForm(fn (Instrument $record) => [
+                        'owner_name' => $record->owner_name,
+                        'owner_id' => $record->owner_id,
+                        'department_id' => $record->department_id,
+                        'machine_name' => $record->machine_name,
+                    ])
+                    ->form([
+                        Grid::make(2)->schema([
+                            TextInput::make('owner_name')
+                                ->label('ผู้รับผิดชอบ (Owner Name)'),
+                            
+                            TextInput::make('owner_id')
+                                ->label('รหัสพนักงาน'),
+
+                            Select::make('department_id')
+                                ->label('แผนก (Department)')
+                                ->options(\App\Models\Department::all()->pluck('name', 'id'))
+                                ->searchable()
+                                ->preload()
+                                ->createOptionForm([
+                                    TextInput::make('name')
+                                        ->label('ชื่อแผนก')
+                                        ->required()
+                                        ->unique('departments', 'name'),
+                                ]),
+                            
+                            TextInput::make('machine_name')
+                                ->label('ประจําเครื่องจักร (Machine)'),
+                            
+                            Textarea::make('ownership_remark')
+                                ->label('หมายเหตุการเปลี่ยน (Reason)')
+                                ->placeholder('ระบุสาเหตุการเปลี่ยนแปลง')
+                                ->columnSpan(2),
+                        ]),
+                    ])
+                    ->action(function (Instrument $record, array $data) {
+                        // ส่งค่าเหตุผลไปที่ Model (Virtual Attribute)
+                        $record->ownership_remark = $data['ownership_remark'];
+                        
+                        // อัปเดตข้อมูล (Model Event จะทำงานและสร้าง History ให้เอง)
+                        $record->update([
+                            'owner_name' => $data['owner_name'],
+                            'owner_id' => $data['owner_id'],
+                            'department_id' => $data['department_id'],
+                            'machine_name' => $data['machine_name'],
+                        ]);
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading('เปลี่ยนผู้รับผิดชอบ/สถานที่')
+                    ->modalDescription('ระบบจะบันทึกประวัติการเปลี่ยนแปลงนี้โดยอัตโนมัติ')
+                    ->modalSubmitActionLabel('บันทึก (Save)'),
                 ])
                 ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -554,6 +598,7 @@ class InstrumentResource extends Resource
     {
         return [
             StatusHistoriesRelationManager::class,
+            RelationManagers\OwnershipHistoriesRelationManager::class,
         ];
     }
 
@@ -562,7 +607,7 @@ class InstrumentResource extends Resource
         return [
             'index' => Pages\ListInstruments::route('/'),
             'create' => Pages\CreateInstrument::route('/create'),
-            'view' => Pages\ViewInstrument::route('/{record}'),
+            'view' => Pages\ViewInstrument::route('/{record}/view'),
             'edit' => Pages\EditInstrument::route('/{record}/edit'),
         ];
     }

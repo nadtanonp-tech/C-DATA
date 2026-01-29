@@ -709,7 +709,6 @@ class ExternalCalResultResource extends Resource
             ->actions([
                 Tables\Actions\ViewAction::make()->color('gray'),
                 Tables\Actions\EditAction::make()->color('warning'),
-                Tables\Actions\DeleteAction::make()->color('danger'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

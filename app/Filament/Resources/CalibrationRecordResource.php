@@ -283,6 +283,28 @@ class CalibrationRecordResource extends Resource
                     ->native(false)
                     ->visible(fn (Get $get) => !in_array($get('calibration_data.calibration_type'), ['VernierCaliper', 'VernierCaliperDigital', 'PressureGauge']))
                     ->dehydrated(),
+                Select::make('calibration_type')
+                    ->label('Calibration Type')
+                    ->options([
+                        'VernierCaliper' => 'Vernier Caliper',
+                        'VernierCaliperDigital' => 'Vernier Caliper Digital',
+                        'MicroMeter' => 'Micro Meter',
+                        'PressureGauge' => 'Pressure Gauge',
+                        'DepthVernier' => 'Depth Vernier',
+                        'VernierHightGauge' => 'Vernier Hight Gauge',
+                        'DialVernierHightGauge' => 'Dial Vernier Hight Gauge',
+                        'DialCaliper' => 'Dial Caliper',
+                        'DialIndicator' => 'Dial Indicator',
+                        'DialTestIndicator' => 'Dial Test Indicator',
+                        'ThicknessGauge' => 'Thickness Gauge',
+                        'ThicknessCaliper' => 'Thickness Caliper',
+                        'CylinderGauge' => 'Cylinder Gauge',
+                        'ChamferGauge' => 'ChamferGauge',
+                        'VernierSpecial' => 'Vernier Special',
+                    ])
+                    ->native(false)
+                    ->hiddenOn(['view', 'create'])
+                    ->dehydrated(),
                 
                 // 🔥 Hidden field สำหรับ column calibration_type (ต้องมีเพื่อให้บันทึกลง database)
                 Forms\Components\Hidden::make('calibration_type')
@@ -316,7 +338,7 @@ class CalibrationRecordResource extends Resource
                             'thickness_gauge' => 'ThicknessGauge',
                             'thickness_caliper' => 'ThicknessCaliper',
                             'cylinder_gauge' => 'CylinderGauge',
-                            'chamfer_gauge' => 'ChamferGauge',
+                            'chamfer_gauge' => 'Chamfer Gauge',
                             'pressure_gauge' => 'PressureGauge',
                             default => null,
                         };

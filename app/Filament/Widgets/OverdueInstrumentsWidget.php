@@ -228,7 +228,14 @@ class OverdueInstrumentsWidget extends BaseWidget
     {
         $instrument = $record->instrument;
         $instrumentId = $record->instrument_id;
-        $calibrationType = $record->calibration_type ?? 'KGauge';
+        
+        // 🔥 Ensure we use the LATEST calibration type
+        // ดึง record ล่าสุดจริงๆ ของเครื่องมือนี้มาเช็ค type อีกครั้ง
+        $latestRecord = CalibrationRecord::where('instrument_id', $instrumentId)
+                            ->latest('cal_date')
+                            ->first();
+
+        $calibrationType = $latestRecord?->calibration_type ?? $record->calibration_type ?? 'KGauge';
         
         // 1. ถ้าเครื่องมือถูก set ว่าเป็น External -> ไป ExternalCalResultResource
         $calPlace = $instrument->cal_place ?? 'Internal';

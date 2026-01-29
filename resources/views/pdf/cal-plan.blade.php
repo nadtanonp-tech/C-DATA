@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-    <title>Monthly In-house Calibration Schedule</title>
+    <title>แผนการสอบเทียบภายในโรงงานประจำเดือน {{ $startDate->format('F Y') }}</title>
     <style>
         @page {
             margin-top: 180px; 
@@ -109,8 +109,8 @@
             <!-- Row 2 -->
             <tr>
                 <td class="w-left text-left" style="vertical-align: top;">
-                    <span class="bold">Document Title :</span><span class ="bold"> Monthly In-house Calibration Schedule</span><br>
-                    <span>ชื่อเอกสาร :</span> แผนการสอบเทียบภายในโรงงานประจำเดือน
+                    <span class="bold">Document Title :</span><span>    แผนการสอบเทียบภายในโรงงานประจำเดือน</span><br>
+                    <span>ชื่อเอกสาร :</span>
                 </td>
                 <td class="w-right-1 text-left" style="vertical-align: top;">
                     <span class="bold">Issue No :</span><br>

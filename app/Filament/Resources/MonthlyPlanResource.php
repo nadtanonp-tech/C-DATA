@@ -287,7 +287,6 @@ class MonthlyPlanResource extends Resource
                     ->label('สถานะ (Status)')
                     ->options([
                         'Plan' => 'Plan',
-                        'In Progress' => 'In Progress',
                         'Completed' => 'Completed',
                         'Overdue' => 'Overdue',
                     ])

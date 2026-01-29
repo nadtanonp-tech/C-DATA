@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-    <title>Calibration Report</title>
+    <title>ใบรายงานสรุปผลการสอบเทียบประจำเดือน {{ $startDate->format('F Y') }}</title>
     <style>
         @page {
             margin-top: 180px; /* Increased space for Fixed Header */
@@ -164,8 +164,8 @@
     <!-- แถวที่ 3 -->
     <tr>
         <td class="w-left text-left" style="vertical-align: top;">
-            <span class="bold">Document Title :</span><span class ="bold"> Monthly Calibration Summary</span><br>
-            <span>ชื่อเอกสาร :</span> ใบรายงานสรุปผลการสอบเทียบประจำเดือน
+            <span class="bold">Document Title :</span><span> ใบรายงานสรุปผลการสอบเทียบประจำเดือน</span><br>
+            <span>ชื่อเอกสาร :</span> 
         </td>
         <td class="w-right-1 text-left" style="vertical-align: top;">
             <span class="bold">Issue No :</span><br>
@@ -249,7 +249,7 @@
     
     @endforeach
 
-    <table style="border: none; margin-top: 50px;">
+    <table style="border: none; margin-top: 20px;">
         <tr class="no-border">
             <td class="no-border text-right" style="width: 50%;"></td> <td class="no-border text-right" style="width: 50%;">
                 <span class="bold">หน.ตรวจสอบฯ</span> ......................................................................

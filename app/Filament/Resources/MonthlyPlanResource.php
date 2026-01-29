@@ -304,19 +304,27 @@ class MonthlyPlanResource extends Resource
                 Action::make('internal_plan_report')
                     ->label('Export Internal Plan')
                     ->icon('heroicon-o-printer')
-                    ->color('warning')
+                    ->color('success')
+                    ->modalWidth(\Filament\Support\Enums\MaxWidth::Small)
+                    ->centerModal()
+                    ->modalHeading('Export Internal Plan')
+                    ->modalDescription('เลือกเงื่อนไขสำหรับออกรายงานแผนภายใน (Internal Plan)')
+                    ->modalSubmitActionLabel('Submit')
                     ->form([
                         DatePicker::make('month')
                             ->label('เดือน')
                             ->displayFormat('F Y')
+                            ->native(false)
                             ->default(now()->startOfMonth())
                             ->required(),
                         Select::make('department')
                             ->label('Department')
+                            ->native(false)
                             ->options(fn () => Department::pluck('name', 'name')->toArray())
                             ->placeholder('All Departments'),
                         Select::make('calibration_type')
                             ->label('Calibration Type')
+                            ->native(false)
                             ->options(fn () => \App\Models\MonthlyPlan::select('calibration_type')
                                 ->distinct()
                                 ->whereNotNull('calibration_type')
@@ -325,6 +333,7 @@ class MonthlyPlanResource extends Resource
                             ->placeholder('All Types'),
                         Select::make('level')
                             ->label('Level')
+                            ->native(false)
                             ->options([
                                 'A' => 'Level A',
                                 'B' => 'Level B',
@@ -356,19 +365,27 @@ class MonthlyPlanResource extends Resource
                 Action::make('summary_report')
                     ->label('Export Summary Cal')
                     ->icon('heroicon-o-printer')
-                    ->color('warning')
+                    ->color('success')
+                    ->modalWidth(\Filament\Support\Enums\MaxWidth::Small)
+                    ->centerModal()
+                    ->modalHeading('Export Summary Calibration')
+                    ->modalDescription('เลือกเงื่อนไขสำหรับออกรายงานสรุปผลการสอบเทียบ (Summary Report)')
+                    ->modalSubmitActionLabel('Submit')
                     ->form([
                         DatePicker::make('month')
                             ->label('Month')
+                            ->native(false)
                             ->displayFormat('F Y')
                             ->default(now()->startOfMonth())
                             ->required(),
                         Select::make('department')
                             ->label('Department')
+                            ->native(false)
                             ->options(fn () => Department::pluck('name', 'name')->toArray())
                             ->placeholder('All Departments'),
                         Select::make('calibration_type')
                             ->label('Calibration Type')
+                            ->native(false)
                             ->options(fn () => \App\Models\MonthlyPlan::select('calibration_type')
                                 ->distinct()
                                 ->whereNotNull('calibration_type')
@@ -377,6 +394,7 @@ class MonthlyPlanResource extends Resource
                             ->placeholder('All Types'),
                         Select::make('status')
                             ->label('Status')
+                            ->native(false)
                             ->options([
                                 'Plan' => 'Plan',
                                 'Completed' => 'Completed',
@@ -417,6 +435,7 @@ class MonthlyPlanResource extends Resource
                     ->form([
                         DatePicker::make('month')
                             ->hiddenLabel()
+                            ->native(false)
                             ->placeholder('Select Month')
                             ->displayFormat('F Y')
                             ->default(now()->startOfMonth())

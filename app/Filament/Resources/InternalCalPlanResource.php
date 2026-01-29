@@ -326,6 +326,7 @@ class InternalCalPlanResource extends Resource
                         DatePicker::make('month')
                             ->label('เดือน (Month)')
                             ->displayFormat('F Y')
+                            ->native(false)
                             ->default(now()->startOfMonth())
                             ->required(),
                         Select::make('department')
@@ -368,6 +369,7 @@ class InternalCalPlanResource extends Resource
                     ->form([
                         DatePicker::make('month')
                             ->hiddenLabel()
+                            ->native(false)
                             ->placeholder('Select Month')
                             ->displayFormat('F Y')
                             ->default(now()->startOfMonth())
